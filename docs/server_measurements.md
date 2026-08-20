@@ -32,8 +32,71 @@ Measured 18–19 August 2026.
 
 ## 2. Whole graph
 
-Measured 19 August 2026 via `~/recon.py`; full output is in `~/recon.txt` **on the
-server** and has not been copied locally yet (see §6).
+Measured 19 August 2026 via `~/recon.py`. Full output copied locally
+20 August 2026 and committed as [`docs/recon.txt`](recon.txt) — read that for the
+complete label, relation, property and degree tables. The derived facts below are
+the ones that drive design decisions.
+
+### 95.3% of the graph is one construct
+
+| Label | Nodes |
+|---|---|
+| `Sample` | 6,025,659 |
+| `LabTest` | 4,832,744 |
+| `LabResult` | 4,832,744 |
+| `LabTestEvent` | 4,832,744 |
+| **subtotal** | **20,523,891 of 21,537,305 = 95.3%** |
+
+SPHN represents one laboratory result as four event nodes plus shared
+`Quantity`, `Unit`, `Code`, `ReferenceRange` and `BodySite` nodes. The loader
+emits **one** `LabObservation` node for the whole construct, so graph preparation
+is roughly a 4× node reduction on 95% of the graph before any pruning of
+provenance. For patient #0 that is ≈49,400 raw event nodes reduced to 12,349.
+
+### Three relations carry half the edges
+
+| Relation | Uses | Target |
+|---|---|---|
+| `hasSourceSystem` | 11,680,076 | 168 `SourceSystem` nodes |
+| `hasSubjectPseudoIdentifier` | 11,600,854 | 1,197 patient nodes |
+| `hasAdministrativeCase` | 11,566,354 | 37,513 case nodes |
+| `hasCode` | 4,883,809 | 10,014 `Code` nodes |
+
+35M of 72M edges are those first three. Pruning provenance removes 11.7M edges on
+its own.
+
+### Degree, from the recon output
+
+| Label | Nodes | Max degree | Avg degree |
+|---|---|---|---|
+| `SourceSystem` | 168 | **10,858,404** | 69,525 |
+| `BodySite` | 6 | 2,831,985 | 575,814 |
+| `TimePattern` | 2 | 557,488 | 313,012 |
+| `Code` | 10,014 | 1,226,895 | 833 |
+| `ReferenceRange` | 718 | 147,870 | 6,113 |
+| `SubjectPseudoIdentifier` | 1,197 | 74,275 | 9,693 |
+
+One `SourceSystem` node carries 10.86M edges — 15% of every edge in the graph on
+a single node. Every label in this table is either pruned or folded by the
+loader.
+
+### What the loader does not represent — decisions to confirm
+
+Recon revealed labels the loader ignores. Each is a deliberate scope choice, but
+none has been agreed with the data owners:
+
+| Label | Nodes | Consequence of omitting it |
+|---|---|---|
+| `Sample` | 6,025,659 | no question about specimens or collection time |
+| `DrugPrescription` | 35,784 | cannot distinguish prescribed from administered |
+| `Birth`, `BirthDate` | 1,214 / 1,174 | no age-based questions |
+| `Death`, `DeathDate` | 241 / 229 | no outcome/mortality questions |
+| `AdministrativeSex` | 1,214 | no sex-stratified questions |
+| `Consent` | 1,214 | correctly out of scope |
+
+Prescription-versus-administration and mortality are plausible clinical
+questions, so this list has to be settled before the gold set is written, not
+after.
 
 | Quantity | Value |
 |---|---|
@@ -174,24 +237,26 @@ run rather than hidden.
 
 In priority order. Each is one command and answers something currently guessed.
 
-1. **Copy `~/recon.txt` locally.** It is the only complete record of the schema
-   and it exists in exactly one place.
-   ```bash
-   # POWERSHELL (laptop)
-   scp sdosku@chil.scicoreplus.unibas.ch:~/recon.txt docs/recon.txt
-   ```
-2. **Distinct embed texts per label**, to explain the 614 and to know which label
-   contributes the tie-breaking problem. Currently inferred, not measured.
-3. **Raw versus prepared node count for one patient**: how many nodes patient #0
-   occupies *before* folding terminology nodes and pruning provenance. This turns
-   the graph-preparation argument into a number.
-4. **Whether the server can reach arbitrary HTTP**, which decides whether
-   terminology catalogues can be fetched there or must be `scp`-ed in.
-   ```bash
-   # SERVER
-   curl -sS -o /dev/null -w '%{http_code}\n' https://example.org
-   ```
-5. **Patient size distribution**: patient #0 may not be typical, and the whole
-   evaluation is per patient. Minimum, median and maximum node counts across the
-   1,197.
-6. **ATC, UCUM and SNOMED description coverage**, to complete §3.
+Two of the original six are now done:
+
+- ~~Copy `~/recon.txt` locally~~ — done 20 August 2026, see §2.
+- ~~Can the server reach arbitrary HTTP?~~ — **yes**, `https://example.org`
+  returned `200` on 20 August 2026. Terminology catalogues can therefore be
+  downloaded on the server, and do not have to be `scp`-ed in.
+- Raw-versus-prepared node counts are now **derivable** from the label table in
+  §2 rather than needing a query, though a direct per-patient count would still
+  be a cleaner number to quote.
+
+Still outstanding:
+
+1. **Distinct embed texts per label**, to explain the 614 and identify which
+   label contributes most of the tie-breaking problem. Currently inferred.
+2. **Patient size distribution.** Patient #0 may not be typical and the whole
+   evaluation is per patient: minimum, median and maximum node counts across the
+   1,197. This decides whether one graph per question is even feasible.
+3. **ATC, UCUM and SNOMED description coverage**, to complete §3.
+4. **Does SnapQuery respond on port 8002**, and what does one full exchange look
+   like end to end? Nothing about the baseline harness can be finished until one
+   real response has been observed.
+5. **Confirm the loader's label coverage** (the omissions table in §2) with the
+   data owners.

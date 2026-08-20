@@ -3,10 +3,12 @@ PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-1,lab result: urea,entity,False,0.03664921465968586,,,0.0,13,12,1699,0.007840772014475271,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-2,lab result: sodium,entity,False,0.047619047619047616,,,0.0,13,12,1700,0.007840772014475271,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-3,lab result: potassium,entity,False,0.056,,,0.0,13,12,1914,0.007840772014475271,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-4,lab result: chloride,entity,False,0.0625,,,0.0,13,12,1732,0.007840772014475271,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-0,drug administration: tacrolimus,entity,False,0.125,,,0.0,11,10,1097,0.0066344993968636915,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-1,drug administration: ciclosporin,entity,False,0.3225806451612903,,,0.0,11,10,1119,0.0066344993968636915,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-2,drug administration: mycophenolate mofetil,entity,False,0.47619047619047616,,,0.0,11,10,1231,0.0066344993968636915,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-3,drug administration: prednisolone,entity,False,0.625,,,0.0,11,10,1131,0.0066344993968636915,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-4,drug administration: basiliximab,entity,False,0.7692307692307693,,,0.0,11,10,1119,0.0066344993968636915,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-named-0,"blutarmut, stadium 1",entity,False,1.0,,,0.0,10,9,1007,0.006031363088057901,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-named-1,"infektion des harntrakts, stadium 2",entity,False,1.0,,,0.0,10,9,1004,0.006031363088057901,True,
 PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-codeonly-0,"chronische erkrankung, stadium 1",entity,False,0.0,,,0.0,10,9,1007,0.006031363088057901,True,
@@ -15,10 +17,12 @@ top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-0,lab result: cr
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-1,lab result: urea,entity,False,0.005235602094240838,,,0.0,9,10,1067,0.005428226779252111,True,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-2,lab result: sodium,entity,False,0.006802721088435374,,,0.0,9,10,1071,0.005428226779252111,True,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-3,lab result: potassium,entity,False,0.056,,,0.0,12,10,1849,0.007237635705669481,False,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-4,lab result: chloride,entity,False,0.008928571428571428,,,0.0,9,10,1083,0.005428226779252111,True,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-0,drug administration: tacrolimus,entity,False,0.125,,,0.0,11,10,1097,0.0066344993968636915,True,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-1,drug administration: ciclosporin,entity,False,0.3225806451612903,,,0.0,11,10,1119,0.0066344993968636915,True,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-2,drug administration: mycophenolate mofetil,entity,False,0.47619047619047616,,,0.0,11,10,1231,0.0066344993968636915,True,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-3,drug administration: prednisolone,entity,False,0.625,,,0.0,11,10,1131,0.0066344993968636915,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-4,drug administration: basiliximab,entity,False,0.7692307692307693,,,0.0,11,10,1119,0.0066344993968636915,True,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-named-0,"blutarmut, stadium 1",entity,False,1.0,,,0.0,10,10,1139,0.006031363088057901,True,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-named-1,"infektion des harntrakts, stadium 2",entity,False,1.0,,,0.0,14,10,1783,0.008443908323281062,False,10.0
 top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-codeonly-0,"chronische erkrankung, stadium 1",entity,False,0.0,,,0.0,10,10,1069,0.006031363088057901,True,10.0
