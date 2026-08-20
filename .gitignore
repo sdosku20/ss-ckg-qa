@@ -28,6 +28,12 @@ code_fields.txt
 !terminology/
 !terminology/*.csv
 
+# Exception: results computed on the SYNTHETIC replica. No clinical data can
+# reach these files -- the replica never touches the database. They are
+# committed because they are the offline record of what was run.
+!experiments/results/
+!experiments/results/*.csv
+
 # --- Python ------------------------------------------------------------------
 __pycache__/
 *.py[cod]

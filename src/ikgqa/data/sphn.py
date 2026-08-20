@@ -422,6 +422,24 @@ class _Builder:
         self.edges.append((src, relation, dst))
 
 
+def default_encoder(embed_texts: Iterable[str], relations: Iterable[str]) -> Any:
+    """The dev-mode encoder, defined in exactly one place.
+
+    A question has to be encoded in the same space as the graph, and with a
+    bag-of-words encoder "the same space" means "the same vocabulary in the same
+    order". Callers that build a graph with ``encoder=None`` reproduce its space
+    by calling this with the graph's own texts, rather than guessing the corpus.
+
+    Fitting on composed text and not on raw database rows is deliberate: rows
+    put every distinct timestamp and measured value into the vocabulary, which
+    on patient #0 gave a 15,010-dimensional space for 614 distinct texts and let
+    dates dominate a score meant to be about words.
+    """
+    from ikgqa.encoders import BagOfWordsEncoder
+
+    return BagOfWordsEncoder(sorted(set(embed_texts)) + sorted(set(relations)))
+
+
 def build_patient_graph(
     rows: Dict[str, Sequence[Dict[str, Any]]],
     encoder: Any = None,
@@ -529,15 +547,7 @@ def build_patient_graph(
     relations = sorted({r for _, r, _ in b.edges})
 
     if encoder is None:
-        # Dev-mode default, fitted here rather than by the caller because this is
-        # the only place that knows which strings are actually embedded. Fitting
-        # on the raw database rows instead (the previous behaviour) put every
-        # distinct timestamp and measured value into the vocabulary: on patient
-        # #0 that produced a 15,010-dimensional space for 614 distinct texts,
-        # and let dates dominate a similarity score meant to be about words.
-        from ikgqa.encoders import BagOfWordsEncoder
-
-        encoder = BagOfWordsEncoder(unique + relations)
+        encoder = default_encoder(unique, relations)
 
     matrix = np.asarray(encoder.encode(unique), dtype=np.float32)
     lookup = {text: i for i, text in enumerate(unique)}
@@ -712,16 +722,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
 
     if args.retrieve:
-        from ikgqa.encoders import BagOfWordsEncoder
         from ikgqa.retrieval import PCST, assert_valid
 
-        # The question must be encoded in the same vector space as the graph.
-        # build_patient_graph fitted its default encoder on exactly these
-        # strings in exactly this order, so refitting reproduces that space;
-        # the assert makes the assumption fail loudly if that ever changes,
-        # because a silent mismatch yields plausible but meaningless rankings.
-        vocab = sorted(set(table["embed_text"])) + sorted(set(graph.edges["edge_attr"]))
-        encoder = BagOfWordsEncoder(vocab)
+        # The question must live in the same vector space as the graph, which
+        # default_encoder guarantees by construction. The assert keeps a future
+        # change from producing plausible but meaningless rankings in silence.
+        encoder = default_encoder(table["embed_text"], graph.edges["edge_attr"])
         q_emb = encoder.encode_one(args.retrieve)
         assert q_emb.shape[0] == graph.node_emb.shape[1], (
             f"question dim {q_emb.shape[0]} != graph dim {graph.node_emb.shape[1]}; "

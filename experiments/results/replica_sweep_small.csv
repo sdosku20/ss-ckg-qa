@@ -1,0 +1,27 @@
+retriever,dial,dial_value,config,answer_node_recall,n_scored,edge_recall,edge_precision,nodes,edges,chars,node_fraction,always_connected,n_questions
+BFS expansion,hops,1.0,"BFS expansion(k=3, hops=1)",0.2073,12,,0.0,7.5,10.8333,862.1667,0.0045,True,12
+BFS expansion,hops,2.0,"BFS expansion(k=3, hops=2)",0.8878,12,,0.0,1553.6667,3105.6667,287686.75,0.9371,True,12
+BFS expansion,hops,3.0,"BFS expansion(k=3, hops=3)",1.0,12,,0.0,1658.0,4592.0,323928.0,1.0,True,12
+PCST,cost_e,3.0,"PCST(topk=10, topk_e=0, cost_e=3.0, tie_break=stable)",0.2661,12,,0.0,9.25,8.25,1065.0,0.0056,True,12
+PCST,cost_e,1.0,"PCST(topk=10, topk_e=0, cost_e=1.0, tie_break=stable)",0.2957,12,,0.0,10.9167,9.9167,1280.1667,0.0066,True,12
+PCST,cost_e,0.5,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",0.309,12,,0.0,11.3333,10.3333,1327.3333,0.0068,True,12
+PCST,cost_e,0.25,"PCST(topk=10, topk_e=0, cost_e=0.25, tie_break=stable)",0.309,12,,0.0,11.3333,10.3333,1327.3333,0.0068,True,12
+PCST,cost_e,0.1,"PCST(topk=10, topk_e=0, cost_e=0.1, tie_break=stable)",0.309,12,,0.0,11.3333,10.3333,1327.3333,0.0068,True,12
+PCST,cost_e,0.05,"PCST(topk=10, topk_e=0, cost_e=0.05, tie_break=stable)",0.309,12,,0.0,11.3333,10.3333,1327.3333,0.0068,True,12
+PCST,cost_e,0.01,"PCST(topk=10, topk_e=0, cost_e=0.01, tie_break=stable)",0.309,12,,0.0,11.3333,10.3333,1327.3333,0.0068,True,12
+PCST,cost_e (published defaults),0.5,"PCST(topk=3, topk_e=5, cost_e=0.5, tie_break=stable)",1.0,12,,0.0,1658.0,4592.0,323928.0,1.0,True,12
+shortest paths,k,2.0,shortest paths(k=2),0.1944,12,,0.0,3.0,2.0,327.9167,0.0018,True,12
+shortest paths,k,3.0,shortest paths(k=3),0.2073,12,,0.0,4.0,3.0,449.8333,0.0024,True,12
+shortest paths,k,5.0,shortest paths(k=5),0.2331,12,,0.0,6.0,5.0,699.5,0.0036,True,12
+shortest paths,k,10.0,shortest paths(k=10),0.309,12,,0.0,11.3333,13.4167,1392.0,0.0068,True,12
+top-k nodes + neighbours,k,1.0,top-k nodes + neighbours(k=1),0.1815,12,,0.0,3.6667,2.6667,327.8333,0.0022,True,12
+top-k nodes + neighbours,k,3.0,top-k nodes + neighbours(k=3),0.2073,12,,0.0,7.5,8.0,785.0,0.0045,True,12
+top-k nodes + neighbours,k,10.0,top-k nodes + neighbours(k=10),0.4757,12,,0.0,532.25,680.6667,86566.1667,0.321,True,12
+top-k nodes + neighbours,k,30.0,top-k nodes + neighbours(k=30),0.6632,12,,0.0,547.6667,1189.6667,102010.4167,0.3303,True,12
+top-k nodes + neighbours,k,100.0,top-k nodes + neighbours(k=100),0.8324,12,,0.0,595.0,1328.1667,110661.4167,0.3589,True,12
+top-k triples (KAPING),k,1.0,top-k triples (KAPING)(k=1),0.1815,12,,0.0,2.0,1.0,211.3333,0.0012,True,12
+top-k triples (KAPING),k,3.0,top-k triples (KAPING)(k=3),0.2073,12,,0.0,4.1667,3.0,463.9167,0.0025,False,12
+top-k triples (KAPING),k,10.0,top-k triples (KAPING)(k=10),0.3016,12,,0.0,11.0,10.0,1296.0,0.0066,False,12
+top-k triples (KAPING),k,30.0,top-k triples (KAPING)(k=30),0.4762,12,,0.0,29.0,30.0,3629.8333,0.0175,False,12
+top-k triples (KAPING),k,100.0,top-k triples (KAPING)(k=100),0.6089,12,,0.0,81.25,100.0,11766.5,0.049,False,12
+top-k triples (KAPING),k,300.0,top-k triples (KAPING)(k=300),0.7122,12,,0.0,192.6667,300.0,30944.3333,0.1162,False,12

@@ -20,6 +20,14 @@ That is the next piece of work, and it needs the schema output from `recon.py`.
 
 ## 2. How to pick up again
 
+### Working without server access
+
+Everything below runs on the laptop with no database. `ikgqa.data.replica`
+generates a synthetic patient matching patient #0's measured structure exactly,
+so the whole pipeline can be developed and swept offline. Every server
+measurement is written down in `docs/server_measurements.md`, including a list of
+what still needs measuring next time there is access.
+
 ### On your laptop — the code
 
 ```powershell
@@ -256,6 +264,53 @@ Three consequences, all Chapter 6 material:
 - **The text gap is entirely on the diagnosis side.** Labs are fully described; 80% of
   this patient's diagnoses are unreachable by similarity under any wording. That makes
   the F6 cross-walk the highest-value single piece of work left.
+
+**F9. Measured-shape replica + sweep, run offline (20 Aug 2026).**
+`ikgqa.data.replica` generates a synthetic patient matching patient #0 **exactly** on
+every structural count (15,810 nodes, 45,562 edges, all label counts). It does this by
+generating rows in the Cypher's own shape and feeding them through the real
+`build_patient_graph`, so the structure is identical by construction and the real
+assembly code is exercised. Results in `experiments/results/`.
+
+```powershell
+PCST\.venv\Scripts\python.exe experiments\sweep_replica.py           # full size
+PCST\.venv\Scripts\python.exe experiments\sweep_replica.py --small   # 10x smaller
+```
+
+Four results, all at full patient size:
+
+- **F2 confirmed at scale.** PCST with published defaults (`topk=3, topk_e=5,
+  cost_e=0.5`) returned **15,810 of 15,810 nodes — the entire graph.**
+- **F1 sharpened: `cost_e` is barely a size dial here.** With `topk=10, topk_e=0`,
+  sweeping `cost_e` from 3.0 down to 0.01 moved the subgraph from 8 nodes to 11 and
+  then flatlined. The reachable range is 8–11 nodes; the real size dial in this regime
+  is `topk`, not `cost_e`. Methodology must sweep both.
+- **Neighbourhood expansion has no usable middle.** BFS at 1 hop gives 7.7 nodes
+  (0.05% of the graph); at 2 hops, 15,334 (97%). An integer dial cannot land between
+  them. This is the "size control lost on a dense graph" claim of §2.4, measured.
+  Top-k-nodes-plus-neighbours does the same thing: k=30 → 61 nodes, k=100 → 5,237.
+- **At equal size, connectivity contributed nothing.** At ~11 nodes, PCST, shortest
+  paths, top-k nodes and KAPING all scored **0.1835** — identical. On this graph the
+  similarity signal, not the structure, decides what is retrieved at small sizes. That
+  is a direct partial answer to RQ2 and it needs the real encoder before it is final.
+
+Also measured: KAPING returns a **disconnected** result for every k ≥ 3, the predicted
+weakness of independent scoring.
+
+Two of my own errors were caught by this run and are worth not repeating: the sweep
+first constructed `TopKTriples(k=k)` without an encoder, which silently crippled the
+baseline to relation-text-only ranking (understating a baseline is as much an error as
+overstating your method); and the planted code-only diagnosis questions initially
+quoted the ICD code, so they were answerable by string overlap and measured nothing.
+Both are now pinned by tests in `tests/test_replica.py`.
+
+**F10. Repeated-measurement questions may not be subgraph-retrievable at all.**
+"All creatinine values" has 2,407 answer nodes for patient #0's replica, so recall at any
+usable subgraph size is near zero for *every* method — not a retrieval failure but a sign
+that such questions are aggregations, not retrievals. This is the same entity-vs-aggregate
+issue that needs settling with Andi (§7), now with a number attached. Note also that
+`AdministrativeCase` nodes carry no distinguishing text, so episode or time scoping cannot
+come from similarity and must come from a structured pre-filter.
 
 **F7. Upstream returns edge ids unsorted.** `decode_solution` concatenates solver edges
 with edges recovered from virtual nodes and never re-sorts, so `selected_edges` comes

@@ -1,0 +1,27 @@
+retriever,config,dial,dial_value,size,answer_node_recall,n_scored
+BFS expansion,"BFS expansion(k=3, hops=1)",hops,1.0,7.6667,0.1719,12
+BFS expansion,"BFS expansion(k=3, hops=2)",hops,2.0,15333.6667,0.9391,12
+BFS expansion,"BFS expansion(k=3, hops=3)",hops,3.0,15810.0,1.0,12
+PCST,"PCST(topk=10, topk_e=0, cost_e=3.0, tie_break=stable)",cost_e,3.0,8.0,0.1785,12
+PCST,"PCST(topk=10, topk_e=0, cost_e=1.0, tie_break=stable)",cost_e,1.0,10.0,0.1818,12
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",cost_e,0.5,11.0,0.1835,12
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.25, tie_break=stable)",cost_e,0.25,11.0,0.1835,12
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.1, tie_break=stable)",cost_e,0.1,11.0,0.1835,12
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.05, tie_break=stable)",cost_e,0.05,11.0,0.1835,12
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.01, tie_break=stable)",cost_e,0.01,11.0,0.1835,12
+PCST,"PCST(topk=3, topk_e=5, cost_e=0.5, tie_break=stable)",cost_e (published defaults),0.5,15810.0,1.0,12
+shortest paths,shortest paths(k=2),k,2.0,3.0,0.1703,12
+shortest paths,shortest paths(k=3),k,3.0,4.0,0.1719,12
+shortest paths,shortest paths(k=5),k,5.0,6.0,0.1752,12
+shortest paths,shortest paths(k=10),k,10.0,11.0,0.1835,12
+top-k nodes + neighbours,top-k nodes + neighbours(k=1),k,1.0,3.6667,0.1686,12
+top-k nodes + neighbours,top-k nodes + neighbours(k=3),k,3.0,7.6667,0.1719,12
+top-k nodes + neighbours,top-k nodes + neighbours(k=10),k,10.0,21.6667,0.1835,12
+top-k nodes + neighbours,top-k nodes + neighbours(k=30),k,30.0,61.25,0.2165,12
+top-k nodes + neighbours,top-k nodes + neighbours(k=100),k,100.0,5236.8333,0.5058,12
+top-k triples (KAPING),top-k triples (KAPING)(k=1),k,1.0,2.0,0.002,12
+top-k triples (KAPING),top-k triples (KAPING)(k=3),k,3.0,4.0833,0.1719,12
+top-k triples (KAPING),top-k triples (KAPING)(k=10),k,10.0,11.0833,0.1835,12
+top-k triples (KAPING),top-k triples (KAPING)(k=30),k,30.0,31.1667,0.2167,12
+top-k triples (KAPING),top-k triples (KAPING)(k=100),k,100.0,98.1667,0.3326,12
+top-k triples (KAPING),top-k triples (KAPING)(k=300),k,300.0,258.6667,0.4912,12
