@@ -1,6 +1,6 @@
 # Status and next steps
 
-_Last updated: 19 August 2026_
+_Last updated: 20 August 2026_
 
 Read this first when you come back to the project. It says where things stand,
 the exact commands to get running again, and the facts that took effort to
@@ -10,11 +10,15 @@ discover so you never have to work them out twice.
 
 ## 1. Where things stand
 
-Server access works. The clinical Neo4j database is reachable and authenticating.
-The code side has a tested Python package implementing PCST retrieval, four
-baselines and the thesis metric. What is still missing is the bridge between the
-two: a loader that turns the real STCS graph into the package's data structure.
-That is the next piece of work, and it needs the schema output from `recon.py`.
+The retrieval core is done and validated on real clinical data: PCST (verified
+byte-equivalent to published G-Retriever), four baselines, the answer-node-recall
+metric, the sweep harness, a working Neo4j loader, a measured-shape replica for
+offline work, and the terminology cross-walk. 172 tests pass.
+
+What is **not** done, and is the honest critical path: the SnapQuery baseline
+harness. The whole thesis result is a comparison against it and not one real
+SnapQuery response has been observed yet. Everything else on the list can be
+built offline against the replica; that one cannot. See §5.
 
 ---
 
@@ -35,7 +39,7 @@ cd "C:\Users\serxh\OneDrive\Documents\THESIS\Master Thesis Code"
 PCST\.venv\Scripts\python.exe -m pytest
 ```
 
-Expect **137 passed** in about 4 seconds. If that holds, nothing has rotted.
+Expect **172 passed**. If that holds, nothing has rotted.
 
 ```powershell
 PCST\.venv\Scripts\python.exe -m ikgqa.demo          # PCST, one stage at a time
@@ -160,12 +164,13 @@ Python package `ikgqa`, installed editable into `PCST/.venv`.
 | `ikgqa.pcst` | The PCST algorithm + a verbatim copy of upstream as a test oracle |
 | `ikgqa.retrieval` | `PCST`, `TopKTriples`, `TopKNodesPlusNeighbors`, `BFSExpansion`, `ShortestPaths` |
 | `ikgqa.eval` | `metrics.py` (answer-node recall), `sweep.py` (recall-vs-size curve), `toy_report.py` |
-| `ikgqa.data` | Toy graphs, including a small clinical one |
+| `ikgqa.data` | `sphn` (Neo4j loader), `replica` (measured-shape synthetic patient), `terminology` (code cross-walk), `toy` |
+| `PyPI` | Reachable, and arbitrary HTTPS too (confirmed 20 Aug) |
 
 Verified facts about it:
 
 - `reference.py` is **byte-identical** to upstream G-Retriever `main` (diffed 18 Aug 2026).
-- 122 tests pass, including PCST equivalence against that copy on curated *and* random graphs.
+- 172 tests pass, including PCST equivalence against that copy on curated *and* random graphs.
 - `numpy<2` is mandatory: under NumPy 2 the `pcst_fast` wheel returns correctly shaped
   garbage without raising. `check_pcst_fast_sanity()` catches it at runtime.
 - Aggregate questions ("how many patients…") are recorded as `NaN` with a reason,
