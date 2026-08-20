@@ -10,15 +10,27 @@ discover so you never have to work them out twice.
 
 ## 1. Where things stand
 
-The retrieval core is done and validated on real clinical data: PCST (verified
-byte-equivalent to published G-Retriever), four baselines, the answer-node-recall
-metric, the sweep harness, a working Neo4j loader, a measured-shape replica for
-offline work, and the terminology cross-walk. 172 tests pass.
+_Week 6 of a 24-week plan (prep doc submitted 16 July 2026)._
 
-What is **not** done, and is the honest critical path: the SnapQuery baseline
-harness. The whole thesis result is a comparison against it and not one real
-SnapQuery response has been observed yet. Everything else on the list can be
-built offline against the replica; that one cannot. See §5.
+**Done and validated on real clinical data.** PCST retrieval, verified
+byte-equivalent to the published G-Retriever; four baselines; the
+answer-node-recall metric; the recall-vs-size sweep harness; a Neo4j loader that
+runs against the live STCS graph; a measured-shape replica that reproduces one
+real patient exactly, so everything downstream can be developed offline; and the
+terminology cross-walk. 172 tests pass. Eleven measured findings in §4a.
+
+**Not done, and the honest critical path: the SnapQuery baseline harness.** The
+thesis result is a comparison against SnapQuery, and not one real SnapQuery
+response has been observed. Everything else remaining can be built offline
+against the replica; that one cannot. Full inventory in §5 — roughly 15 focused
+days of Phase 1 code left, which is the entire budget to 10 September with no
+slack.
+
+**Ahead of the plan on the retrieval core; not ahead overall.** The core landing
+in week 6 is genuinely early against a plan that puts Phase 2 in weeks 19–20. The
+codebase as a whole is not ahead: candidate generation, the multi-patient loop,
+the baseline harness and every figure are still missing, and the writing is at
+12.4 of 44 planned pages.
 
 ---
 
@@ -239,6 +251,12 @@ reviewed CSV (`code,version,label,parent_label`) committed to the repo, not runt
 Encoder choice (English-only vs multilingual) stays an ablation because the *question*
 language is still unconfirmed — see §7.
 
+**F7. Upstream returns edge ids unsorted.** `decode_solution` concatenates solver edges
+with edges recovered from virtual nodes and never re-sorts, so `selected_edges` comes
+back in solver order (e.g. `[12, 6, 5, 2]`). Harmless for set-based metrics, but anything
+comparing edge lists positionally will silently disagree. Normalised in
+`ikgqa/retrieval/pcst.py` (not in `core.py`, which stays byte-faithful).
+
 **F8. Measured on real data (patient #0, 20 Aug 2026): the loader works and the
 synthetic predictions hold.** One command:
 
@@ -360,12 +378,6 @@ text, so the baseline could not see the cross-walk at all. `TextualGraph.embed_t
 now exists precisely so text-scoring retrievers rank against the same graph the
 embeddings describe. Both pinned by tests.
 
-**F7. Upstream returns edge ids unsorted.** `decode_solution` concatenates solver edges
-with edges recovered from virtual nodes and never re-sorts, so `selected_edges` comes
-back in solver order (e.g. `[12, 6, 5, 2]`). Harmless for set-based metrics, but anything
-comparing edge lists positionally will silently disagree. Normalised in
-`ikgqa/retrieval/pcst.py` (not in `core.py`, which stays byte-faithful).
-
 ---
 
 ## 4b. Thesis writing
@@ -383,8 +395,11 @@ Target 30–50 pages. Budget encoded in `checktex.py`:
 | 3 G-Retriever and PCST | 6 | not started; owns all the algebra |
 | 4 Methodology | 8 | not started |
 | 5 Implementation | 6 | not started |
-| 6 Results and Discussion | 8 | not started; F1–F7 go here |
+| 6 Results and Discussion | 8 | not started; F1–F11 go here, and several already have tables |
 | 7 Conclusion | 3 | not started |
+
+Written: **12.4 of 44 pages.** Chapter 3 needs no data and no server, so it is the
+one that can be finished at any time.
 
 The repetition Andi flagged had one cause: four ideas each had three or four homes.
 Each now has exactly one, recorded in an editorial-note comment at the top of each
@@ -395,28 +410,50 @@ second week and closely repeats Chapter 1.
 
 ---
 
-## 5. Next actions, in order
+## 5. What is left
 
-Done: recon, loader, node-text format, first real-data run (F8).
+Estimates assume focused days. Scale them to your actual availability — they are
+there for ordering the work, not for promising a date.
 
-1. **Get real questions.** This is now the only hard blocker: the metric, the SnapQuery
-   comparison and the gold set all need them, and they all depend on other people.
-   Chase Andi — see §6. Nothing downstream can be finished without this.
-2. **Terminology cross-walk** - module, tiers, tests and offline measurement DONE
-   (F11). What remains is a real catalogue: the server can reach arbitrary HTTPS
-   (confirmed 20 Aug), so ICD-10-GM can be fetched there. Load it with
-   `Terminology.from_csv` into `terminology/*.csv` (the `.gitignore` exception exists
-   for it). `Terminology.from_graph_labels` already gives a no-download floor by
-   filling a bare code from the same code labelled under another year.
-3. **Real embeddings.** `pip install sentence-transformers`, then encode the 614 distinct
-   texts per patient on the A100. Note the encoding cost is per *distinct text*, not per
-   node, so this is small — 614 encodes for 15,810 nodes.
-4. **Candidate generation.** With one patient at 15,810 nodes, PCST needs a narrowing
-   step before it, not after. Methodology decision, not a workaround.
-5. **SnapQuery baseline harness.** `POST /chat/` then `/chat/continue` on port 8002, with
-   slot-filling answered and the confirmation gate simulated. Needs no database access.
-6. **Measure raw vs prepared** node counts for one patient, to justify graph preparation
-   with a number in Chapter 6 instead of an argument.
+### Blocked on nothing — do these offline
+
+| # | Work | Est. | Why it matters |
+|---|---|---|---|
+| 1 | **Candidate generation** | 3 d | Named contribution. One patient is 15,810 nodes; PCST needs a narrowing step *before* it. Nothing else in Phase 1 is meaningful at full scale without it |
+| 2 | **Multi-patient evaluation loop** | 2 d | Everything so far is one patient. Needs per-patient graph loading, caching, and a question set spanning patients |
+| 3 | **Figures** | 1 d | The recall-vs-size curve is the thesis's headline artefact and there is no plotting code at all yet (matplotlib is not even a dependency) |
+| 4 | **Gold-set format and tooling** | 1 d | The *format* is unblocked even though the questions are not. Build it so questions can be poured in the day they arrive |
+| 5 | **Chapters 3–5** | — | Chapter 3 is pure PCST mathematics and needs no data. See §4b |
+
+### Needs the server
+
+| # | Work | Est. | Note |
+|---|---|---|---|
+| 6 | **One SnapQuery exchange, observed** | hours | **Do this first, before anything else.** See below |
+| 7 | **SnapQuery baseline harness** | 4 d ± a lot | `POST /chat/` then `/chat/continue` on port 8002, slot-filling answered, confirmation gate simulated, result rows mapped to an induced subgraph |
+| 8 | **Real embeddings** | 1 d | `pip install sentence-transformers`, encode on the A100. Cost is per *distinct* text — 614 encodes for 15,810 nodes, so this is cheap |
+| 9 | **Real terminology catalogue** | 1 d | Server reaches arbitrary HTTPS (confirmed 20 Aug), so ICD-10-GM can be fetched there. Load with `Terminology.from_csv` into `terminology/*.csv` |
+| 10 | **The five measurements in `docs/server_measurements.md` §6** | hours | Including the patient size distribution, which decides whether one graph per question is even feasible |
+
+### Later, deliberately
+
+| # | Work | Est. | Note |
+|---|---|---|---|
+| 11 | **Phase 2: generation + faithfulness** | 4 d | Weeks 19–20 in the plan. Pulling it forward buys nothing |
+| 12 | **RQ3 intent/schema prizes** | 2 d | Optional extension. Hierarchy expansion already exists as its cheapest form (F11) |
+
+**Excluding 11 and 12: roughly 15 focused days.** That is not slack — it is the
+whole budget for three weeks, before writing a page.
+
+### The critical path is item 6, and it is not the biggest item
+
+Everything else can be built against the replica. The SnapQuery harness cannot,
+and **not one real SnapQuery response has ever been observed.** The entire thesis
+result is "PCST versus SnapQuery on one metric". If the service turns out to
+expose something that cannot be scripted — session state, an auth path, rows that
+do not map onto graph entities — that does not delay the comparison, it
+invalidates it. So the first hour of the next server session goes on one complete
+exchange, before embeddings, before catalogues, before more measurements.
 
 ---
 
@@ -431,11 +468,28 @@ Done: recon, loader, node-text format, first real-data run (F8).
 
 ## 7. Open design questions
 
+Ordered by how much they cost if answered late.
+
+- **What language do users ask questions in?** Now measured, not speculated:
+  applying a catalogue in the wrong language took named diagnoses from 1.00 recall
+  to **0.00** (F11). It is worse than doing nothing. This one question decides
+  whether the terminology step helps or harms, and which encoder is correct.
 - **Are the real questions entity-answerable or aggregates?** The architecture doc
   describes the graph agent as handling *cohort* questions with slot filling for time
   window and output shape, which sounds like counts. Answer-node recall works for
   "which drug was patient X given"; a count has no answer node anywhere in the graph.
   Agree with Andi how those are scored — or scope Phase 1 to entity questions.
+  F10 adds a number: "all creatinine values" has 2,407 answer nodes for one patient,
+  so recall at any usable subgraph size is near zero for every method. Such questions
+  are aggregations, not retrievals.
+- **Which labels are in scope?** The loader ignores `Sample` (6.0M nodes),
+  `DrugPrescription` (35,784) and all demographics — `Birth`, `Death`,
+  `AdministrativeSex`. Those were implicit choices of mine, not decisions.
+  "Which patients died" and "prescribed but not administered" are plausible clinical
+  questions the loader currently cannot answer at all. Settle this *before* the gold
+  set is written. Full table in `docs/server_measurements.md` §2.
+- **Is `BilledDiagnosis` the right diagnosis label?** Billing codes and clinically
+  recorded diagnoses are not always the same object.
 - **Comparability of the size dials.** PCST sweeps `cost_e`; the baselines sweep `k`.
   These are not the same quantity. Plot both against a *measured* size (nodes, or prompt
   characters) rather than against their own parameter, and state the caveat in
