@@ -53,6 +53,7 @@ import random
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ikgqa.data.sphn import build_patient_graph
+from ikgqa.data.terminology import Concept, Terminology, enrich_rows
 from ikgqa.eval.metrics import KIND_ENTITY, Question
 from ikgqa.graph import TextualGraph
 
@@ -175,12 +176,53 @@ _DE_STEMS = (
     "Blutarmut", "Infektion des Harntrakts", "Lungenentzuendung",
     "Herzinsuffizienz",
 )
+# Qualifiers must share no token with their English counterparts, or the
+# cross-language experiment leaks: "Stadium 3" and "stage 3" both contain the
+# token "3", which was enough for a lexical encoder to match a German question
+# to an English label and make a language gap look bridgeable. Spelled-out
+# ordinals keep the two vocabularies disjoint, which test_replica asserts.
 _DE_QUALIFIERS = (
-    "Stadium 1", "Stadium 2", "Stadium 3", "Stadium 4", "Stadium 5",
+    "Grad eins", "Grad zwei", "Grad drei", "Grad vier", "Grad fuenf",
     "ohne Angabe", "mit Komplikationen", "nicht naeher bezeichnet",
 )
 
+# English counterparts, aligned index-for-index with the German tuples above.
+# Their purpose is not realism but an experiment: a terminology catalogue can
+# supply a description in either language, and a question can be asked in either
+# language, so the four combinations can be measured instead of assumed. Which
+# combination the real deployment is in is still an open question for the data
+# owners, and it changes which encoder is the right one.
+_EN_STEMS = (
+    "Chronic disease", "Acute inflammation", "Secondary disorder",
+    "Unspecified complication", "Transplant rejection",
+    "Impaired kidney function", "High blood pressure", "Diabetes mellitus",
+    "Anaemia", "Urinary tract infection", "Pneumonia", "Heart failure",
+)
+_EN_QUALIFIERS = (
+    "first degree", "second degree", "third degree", "fourth degree",
+    "fifth degree", "unspecified", "with complications",
+    "not otherwise specified",
+)
+
+# A third component, so that 12 x 8 x 4 = 384 distinct diagnosis labels are
+# available for 222 diagnoses. Uniqueness is not cosmetic. With only 24 distinct
+# labels each repeated ~10 times, a planted question's gold answer was always
+# the lowest-indexed member of its tied group -- which is exactly what
+# tie_break="stable" selects, so PCST scored a perfect 1.000 by construction
+# while a retriever indexing in a different order scored 0.000. Unique labels
+# remove that coupling; tie-breaking is measured on its own by the analyte
+# questions, where the ties are real.
+_DE_EXTRA = ("", "links", "rechts", "beidseits")
+_EN_EXTRA = ("", "left", "right", "bilateral")
+assert len(_EN_STEMS) == len(_DE_STEMS)
+assert len(_EN_QUALIFIERS) == len(_DE_QUALIFIERS)
+
 _ICD_LETTERS = "ABCDEFGIJKLMNQRSTZ"
+
+
+def _join_label(*parts: str) -> str:
+    """Join label components, dropping the empty ones."""
+    return ", ".join(p for p in parts if p)
 
 
 def _analyte_names(n: int) -> List[str]:
@@ -302,24 +344,32 @@ def generate_rows(
     named_from = profile.unnamed_diagnoses  # the first N are the unnamed ones
     diagnoses: List[Dict[str, Any]] = []
     for i, code in enumerate(codes):
-        stem = _DE_STEMS[i % len(_DE_STEMS)]
-        qual = _DE_QUALIFIERS[i % len(_DE_QUALIFIERS)]
-        true_name = f"{stem}, {qual}"
+        # Independent digits, not i % n for each component: sharing the index
+        # made the three components move together and collapsed 222 diagnoses
+        # onto 24 labels. See the comment on _DE_EXTRA.
+        stem_idx = i % len(_DE_STEMS)
+        qual_idx = (i // len(_DE_STEMS)) % len(_DE_QUALIFIERS)
+        extra_idx = (i // (len(_DE_STEMS) * len(_DE_QUALIFIERS))) % len(_DE_EXTRA)
+        true_de = _join_label(_DE_STEMS[stem_idx], _DE_QUALIFIERS[qual_idx], _DE_EXTRA[extra_idx])
+        true_en = _join_label(_EN_STEMS[stem_idx], _EN_QUALIFIERS[qual_idx], _EN_EXTRA[extra_idx])
         has_name = i >= named_from
         diagnoses.append(
             {
                 "recorded_at": _stamp(i * 5, 0),
                 "icd_code": code,
                 "code_system": f"10-GM-{2012 + i % 13}",
-                "diagnosis_name": true_name if has_name else None,
+                # The graph carries the German label, as ICD-10-GM does.
+                "diagnosis_name": true_de if has_name else None,
                 "case_id": case_ids[i % len(case_ids)],
                 # Every code has a description in the world; only some have one
-                # *in the graph*. Keeping the withheld description here is what
+                # *in the graph*. Keeping the withheld descriptions here is what
                 # makes the terminology gap measurable: a question can be
-                # phrased in the words a clinician would use, and a code-only
-                # node stays unreachable until a cross-walk supplies them.
-                # Ignored by the text composers, which read diagnosis_name only.
-                "_true_name": true_name,
+                # phrased in the words a clinician would use, in either
+                # language, and a code-only node stays unreachable until a
+                # cross-walk supplies them. Both keys are ignored by the text
+                # composers, which read diagnosis_name and embed_name only.
+                "_true_name": true_de,
+                "_true_name_en": true_en,
             }
         )
 
@@ -351,17 +401,101 @@ def build_replica(
     profile: PatientProfile = PATIENT_0,
     encoder: Any = None,
     seed: int = 0,
+    terminology: Optional[Terminology] = None,
+    expand_hierarchy: bool = False,
 ) -> Tuple[TextualGraph, Any, Any, Dict[str, List[Dict[str, Any]]]]:
     """Rows -> the real assembly code -> (graph, node table, stats, rows).
 
     The rows come back too because ``planted_questions`` needs the descriptions
     that were deliberately withheld from the graph.
+
+    Args:
+        terminology: when given, diagnosis rows are enriched before assembly, so
+            the graph is built the way it would be with a cross-walk in place.
+            The enrichment report is attached to the returned rows under the
+            "_reports" key, which the composers ignore.
+        expand_hierarchy: add parent-concept words to embed_name (RQ3's schema
+            signal in its simplest form).
     """
     rows = generate_rows(profile, seed=seed)
+    if terminology is not None:
+        rows, reports = enrich_rows(rows, terminology, expand_hierarchy=expand_hierarchy)
+        rows["_reports"] = reports
     graph, table, stats = build_patient_graph(
         rows, encoder, patient_index=0, name=f"{profile.label}-replica"
     )
     return graph, table, stats, rows
+
+
+def synthetic_catalogue(
+    rows: Dict[str, Sequence[Dict[str, Any]]],
+    language: str = "de",
+    exact: float = 0.50,
+    version: float = 0.20,
+    parent: float = 0.15,
+) -> Terminology:
+    """A partial catalogue for the code-only diagnoses, exercising every tier.
+
+    A catalogue containing every answer would make the cross-walk look perfect
+    and prove nothing. The default split leaves 15% of codes unresolvable and
+    routes the rest through the three resolution tiers, so
+    ``EnrichmentReport.summary()`` has something to report and the ``parent``
+    tier's broader-than-ideal label shows up in the recall figures.
+
+    Args:
+        language: which language the catalogue describes concepts in. This is
+            the variable that decides whether the cross-walk helps at all: a
+            German catalogue does nothing for an English question under a
+            lexical or English-only encoder.
+        exact/version/parent: fractions of the code-only codes routed to each
+            tier. The remainder is left unresolvable.
+
+    Assignment is by position, not random, so the catalogue is reproducible.
+    """
+    if not 0 <= exact + version + parent <= 1:
+        raise ValueError("tier fractions must sum to at most 1")
+    name_key = "_true_name_en" if language == "en" else "_true_name"
+
+    codeonly = [r for r in rows.get("diagnoses", []) if not r.get("diagnosis_name")]
+    n = len(codeonly)
+    n_exact = int(n * exact)
+    n_version = int(n * version)
+    n_parent = int(n * parent)
+
+    concepts: List[Concept] = []
+    for i, row in enumerate(codeonly):
+        code = str(row["icd_code"])
+        system = str(row["code_system"])
+        label = str(row[name_key])
+        if i < n_exact:
+            concepts.append(Concept(system, code, label, language=language))
+        elif i < n_exact + n_version:
+            # Same code, a different year of the same system: the version tier.
+            year = int(system.rsplit("-", 1)[1])
+            other = f"10-GM-{2012 + (year - 2012 + 5) % 13}"
+            concepts.append(Concept(other, code, label, language=language))
+        elif i < n_exact + n_version + n_parent and "." in code:
+            # Only the parent concept is catalogued, so a leaf resolves to a
+            # broader description than it deserves.
+            stem = code.split(".", 1)[0]
+            group = "Gruppe" if language == "de" else "group"
+            concepts.append(Concept(system, stem, f"{label} ({group})", language=language))
+        # else: deliberately absent, so the "none" tier is populated.
+
+    # Named diagnoses are catalogued too. Their graph label is German, so an
+    # English catalogue entry is what moves their embed_text into English while
+    # display_text keeps the wording the hospital system recorded.
+    for row in rows.get("diagnoses", []):
+        if row.get("diagnosis_name"):
+            concepts.append(
+                Concept(
+                    str(row["code_system"]),
+                    str(row["icd_code"]),
+                    str(row[name_key]),
+                    language=language,
+                )
+            )
+    return Terminology(concepts)
 
 
 def describe_fidelity(profile: PatientProfile, stats: Any, graph: TextualGraph) -> str:
@@ -405,6 +539,7 @@ def planted_questions(
     table: Any,
     rows: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     n_per_kind: int = 5,
+    language: str = "de",
 ) -> List[Question]:
     """Questions whose answer nodes are known because we planted them.
 
@@ -474,12 +609,19 @@ def planted_questions(
             display = str(dx.at[idx, "display_text"])
             by_code.setdefault(_code_key_in(display), idx)
 
+        name_key = "_true_name_en" if language == "en" else "_true_name"
         dx_rows = rows.get("diagnoses", [])
         named_rows = [r for r in dx_rows if r.get("diagnosis_name")]
         codeonly_rows = [r for r in dx_rows if not r.get("diagnosis_name")]
         half = max(1, n_per_kind // 2)
         for qid_prefix, subset in (("dx-named", named_rows), ("dx-codeonly", codeonly_rows)):
-            for i, row in enumerate(subset[:half]):
+            # Stride rather than take the first n. synthetic_catalogue assigns
+            # resolution tiers by position, so the first n code-only rows are
+            # all in the exact-match bucket: sampling them reports the coverage
+            # of the best-covered codes as if it were the coverage of all of
+            # them. Striding spans every tier, including the unresolvable tail.
+            stride = max(1, len(subset) // max(half, 1))
+            for i, row in enumerate(subset[::stride][:half]):
                 key = f"{row['code_system']} {row['icd_code']}"
                 idx = by_code.get(key)
                 if idx is None:
@@ -489,7 +631,7 @@ def planted_questions(
                         # The withheld description, for both halves, so the two
                         # differ only in what the graph knows -- not in how the
                         # question is phrased.
-                        text=str(row["_true_name"]).lower(),
+                        text=str(row[name_key]).lower(),
                         answer_nodes=(int(idx),),
                         answer_edges=(),
                         qid=f"{qid_prefix}-{i}",

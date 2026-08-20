@@ -163,6 +163,85 @@ def test_every_retriever_returns_a_valid_selection(small):
         assert_valid(retriever.retrieve(graph, q_emb), graph)
 
 
+def test_every_diagnosis_has_a_distinct_label():
+    """With labels repeated, a planted question's gold answer was always the
+    lowest-indexed member of its tied group -- which is exactly what
+    tie_break="stable" selects, so PCST scored 1.000 by construction while a
+    retriever indexing in another order scored 0.000. Uniqueness removes the
+    coupling; real ties are measured by the analyte questions instead."""
+    from ikgqa.data.replica import generate_rows
+
+    for profile in (PATIENT_0_SMALL, PATIENT_0):
+        rows = generate_rows(profile, seed=0)
+        labels = [r["_true_name"] for r in rows["diagnoses"]]
+        assert len(set(labels)) == len(labels), f"{profile.label} repeats labels"
+
+
+def test_the_two_language_vocabularies_share_no_token():
+    """The cross-language condition is only a language gap if the two label sets
+    have no token in common. "Stadium 3" and "stage 3" shared the token "3",
+    which was enough for a lexical encoder to bridge the gap and make the
+    experiment report a gain that was not there."""
+    from ikgqa.data import replica as R
+    from ikgqa.encoders import tokenize
+
+    de = {t for phrase in R._DE_STEMS + R._DE_QUALIFIERS + R._DE_EXTRA for t in tokenize(phrase)}
+    en = {t for phrase in R._EN_STEMS + R._EN_QUALIFIERS + R._EN_EXTRA for t in tokenize(phrase)}
+    assert not (de & en), f"shared tokens leak across languages: {sorted(de & en)}"
+
+
+def test_code_only_questions_span_the_resolution_tiers(small):
+    """synthetic_catalogue assigns tiers by position, so sampling the first n
+    code-only rows would report the coverage of the best-covered codes as if it
+    were the coverage of all of them."""
+    from ikgqa.data.replica import synthetic_catalogue
+    from ikgqa.data.terminology import TIER_NONE, enrich_diagnosis_rows
+
+    graph, table, _, rows = small
+    catalogue = synthetic_catalogue(rows, language="de")
+    questions = planted_questions(graph, table, rows, n_per_kind=20)
+    asked = {q.text for q in questions if q.qid.startswith("dx-codeonly")}
+    assert asked, "no code-only questions"
+
+    codeonly = [r for r in rows["diagnoses"] if not r.get("diagnosis_name")]
+    enriched, _ = enrich_diagnosis_rows(codeonly, catalogue)
+    tiers_asked = {
+        r["resolution_tier"] for r in enriched if str(r["_true_name"]).lower() in asked
+    }
+    assert len(tiers_asked) > 1, f"questions only cover tier(s) {tiers_asked}"
+    assert TIER_NONE in tiers_asked, "the unresolvable tail must be asked about too"
+
+
+def test_text_scoring_baselines_see_the_same_text_as_the_embeddings(small):
+    """PCST scores node_emb (built from embed text) while KAPING scores triple
+    text. If the latter came from display text the two would be ranking
+    different graphs, and a change to embed text -- such as resolving a code --
+    would be invisible to the baseline."""
+    graph, table, _, _ = small
+    triples = graph.triple_texts()
+    embed_sample = str(table["embed_text"].iloc[0])
+    display_only = str(table["display_text"].iloc[0])
+    joined = " ".join(triples)
+    assert embed_sample in joined
+    # A timestamp appears in display text and never in embed text, so it is a
+    # reliable marker that display text has not leaked into the ranking input.
+    assert "recorded:" not in joined and "observed" not in joined
+    assert display_only not in joined
+
+
+def test_enrichment_changes_what_the_baseline_can_rank(small):
+    """The end-to-end guarantee: resolving a code must alter the text a
+    text-scoring retriever sees, or the cross-walk cannot help it."""
+    from ikgqa.data.replica import build_replica, synthetic_catalogue
+
+    _, _, _, rows = small
+    catalogue = synthetic_catalogue(rows, language="de")
+    plain, _, _, _ = build_replica(PATIENT_0_SMALL, seed=0)
+    enriched, _, _, _ = build_replica(PATIENT_0_SMALL, seed=0, terminology=catalogue)
+    assert set(plain.embed_texts) != set(enriched.embed_texts)
+    assert " ".join(plain.triple_texts()) != " ".join(enriched.triple_texts())
+
+
 def test_kaping_needs_its_encoder_to_be_a_fair_baseline(small):
     """Without an encoder TopKTriples ranks on relation text alone. With six
     relation types every triple of a type ties, so it degenerates to "the first

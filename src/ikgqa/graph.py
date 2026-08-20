@@ -165,7 +165,34 @@ class TextualGraph:
 
     @property
     def node_texts(self) -> list:
+        """What a reader sees: the full display text, values and dates included.
+
+        This is what goes into a prompt and what prompt_chars measures. It is
+        *not* what similarity is computed on when the two differ -- see
+        embed_texts.
+        """
         return self.nodes["node_attr"].astype(str).tolist()
+
+    @property
+    def embed_texts(self) -> list:
+        """The text ``node_emb`` was computed from.
+
+        For a graph with one text per node this is the same as node_texts. The
+        clinical loader keeps them apart: display text carries the measured
+        value and timestamp so an LLM can answer from it, while embed text
+        carries only the semantic core so that repeated measurements share one
+        embedding.
+
+        Any retriever that scores text rather than using node_emb directly must
+        use *this*, or it is ranking against a different graph than the one the
+        embeddings describe. That is not a subtlety: scoring KAPING on display
+        text while scoring PCST on embed text made a terminology fix invisible
+        to the baseline and produced a 1.000-versus-0.000 result that was purely
+        an artefact of the mismatch.
+        """
+        if "embed_attr" in self.nodes.columns:
+            return self.nodes["embed_attr"].astype(str).tolist()
+        return self.node_texts
 
     @property
     def edge_texts(self) -> list:
@@ -185,8 +212,11 @@ class TextualGraph:
 
         KAPING ranks whole triples, not relations, so giving it only edge_attr
         would handicap the baseline unfairly.
+
+        Built from embed_texts, not node_texts, so the baseline scores against
+        the same text the embeddings were computed from. See embed_texts.
         """
-        texts = self.node_texts
+        texts = self.embed_texts
         return [
             f"{texts[int(s)]} {r} {texts[int(d)]}"
             for s, r, d in zip(self.edges["src"], self.edges["edge_attr"], self.edges["dst"])

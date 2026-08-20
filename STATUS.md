@@ -312,6 +312,49 @@ issue that needs settling with Andi (§7), now with a number attached. Note also
 `AdministrativeCase` nodes carry no distinguishing text, so episode or time scoping cannot
 come from similarity and must come from a structured pre-filter.
 
+**F11. The terminology cross-walk works, is retriever-independent, and is
+language-dependent.** `ikgqa.data.terminology` resolves codes in five tiers
+(`exact`, `version`, `parent`, `local`, `none`) and counts every one, so coverage is
+reported rather than claimed. Measured on the full-size replica with a catalogue
+covering 85% of code-only codes:
+
+```powershell
+PCST\.venv\Scripts\python.exe experiments\terminology_gain.py
+```
+
+| Condition | dx-named | dx-code-only |
+|---|---|---|
+| no catalogue | 1.00 | **0.00** |
+| catalogue, language matches question | 1.00 | **0.80** |
+| catalogue + parent-concept words (RQ3) | 1.00 | 0.80 |
+| catalogue in the **other** language | **0.00** | **0.00** |
+
+Identical for PCST and KAPING. Three conclusions:
+
+- **0.00 → 0.80 on nodes that were unreachable by any wording.** 80%, not 100%,
+  because the catalogue is deliberately partial and the questions are sampled across
+  all five tiers rather than from the well-covered head.
+- **It is not a PCST advantage.** Both retrievers gain identically, because the
+  cross-walk changes *what is reachable at all*, not who reaches it better. Claiming
+  it as a retrieval result would be wrong; it belongs in graph preparation.
+- **A catalogue in the wrong language is worse than none.** It replaced text that was
+  already matching, taking named diagnoses from 1.00 to 0.00. So "what language do
+  users ask in?" is not a detail — it decides whether this step helps or harms. Still
+  unanswered (§7).
+
+Hierarchy expansion did not add anything here, because the parent's words were already
+subsumed by the leaf label in the synthetic vocabulary. Retest once a real catalogue
+with real parent labels is in place — this is RQ3's cheapest form and the replica
+cannot fairly judge it.
+
+**Two more of my own errors caught by this work**, both of which had inflated PCST:
+diagnosis labels repeated 10× so a planted question's gold answer was always the
+lowest-indexed member of its tied group, which is exactly what `tie_break="stable"`
+picks; and `triple_texts()` was built from *display* text while PCST scored *embed*
+text, so the baseline could not see the cross-walk at all. `TextualGraph.embed_texts`
+now exists precisely so text-scoring retrievers rank against the same graph the
+embeddings describe. Both pinned by tests.
+
 **F7. Upstream returns edge ids unsorted.** `decode_solution` concatenates solver edges
 with edges recovered from virtual nodes and never re-sorts, so `selected_edges` comes
 back in solver order (e.g. `[12, 6, 5, 2]`). Harmless for set-based metrics, but anything
@@ -354,11 +397,12 @@ Done: recon, loader, node-text format, first real-data run (F8).
 1. **Get real questions.** This is now the only hard blocker: the metric, the SnapQuery
    comparison and the gold set all need them, and they all depend on other people.
    Chase Andi — see §6. Nothing downstream can be finished without this.
-2. **Terminology cross-walk** (F6 resolution). 80% of patient #0's diagnoses have no
-   text at all, so this is the single highest-value piece of code left. Public catalogue
-   data, committed as `terminology/*.csv` (the `.gitignore` exception exists for it).
-   First check what the server can reach: `pip` works, arbitrary HTTP may not — if not,
-   fetch on the laptop and `scp` it over.
+2. **Terminology cross-walk** - module, tiers, tests and offline measurement DONE
+   (F11). What remains is a real catalogue: the server can reach arbitrary HTTPS
+   (confirmed 20 Aug), so ICD-10-GM can be fetched there. Load it with
+   `Terminology.from_csv` into `terminology/*.csv` (the `.gitignore` exception exists
+   for it). `Terminology.from_graph_labels` already gives a no-download floor by
+   filling a bare code from the same code labelled under another year.
 3. **Real embeddings.** `pip install sentence-transformers`, then encode the 614 distinct
    texts per patient on the A100. Note the encoding cost is per *distinct text*, not per
    node, so this is small — 614 encodes for 15,810 nodes.

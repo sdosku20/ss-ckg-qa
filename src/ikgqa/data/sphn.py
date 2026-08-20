@@ -291,14 +291,21 @@ def diagnosis_text(row: Dict[str, Any]) -> Tuple[str, str]:
     """Text for a billed diagnosis.
 
     ICD-10-GM labels are German while LOINC labels are English, so a graph built
-    from both is bilingual. An English-only encoder will systematically
-    under-rank one of them; see ``ikgqa.encoders`` for the multilingual option.
+    from both is bilingual, and 80% of one patient's diagnoses carry no label at
+    all. ``ikgqa.data.terminology`` resolves codes against a catalogue and writes
+    the result into ``embed_name``; when that key is present it is what the
+    encoder sees, while ``display_text`` keeps whatever label the graph itself
+    recorded so a clinician still reads their own system's wording.
+
+    With no ``embed_name`` the behaviour is unchanged, so a run without
+    enrichment remains the honest baseline to compare against.
     """
     name = _clean(row.get("diagnosis_name"))
     code = _clean(row.get("icd_code"))
     system = _clean(row.get("code_system")) or "ICD-10"
     label = name or code or "unknown diagnosis"
-    embed = f"diagnosis: {label}"
+    embed_label = _clean(row.get("embed_name")) or label
+    embed = f"diagnosis: {embed_label}"
     display = _join(
         [
             f"Diagnosis: {label}",
@@ -561,7 +568,17 @@ def build_patient_graph(
         else np.zeros((0, matrix.shape[1]), dtype=np.float32)
     )
 
-    nodes_df = pd.DataFrame({"node_id": np.arange(len(b.embed)), "node_attr": b.display})
+    # node_attr is the display text (what a reader and the prompt-size metric
+    # see); embed_attr is the text node_emb was computed from. Carrying both is
+    # what lets a text-scoring baseline rank against the same graph the
+    # embeddings describe -- see TextualGraph.embed_texts.
+    nodes_df = pd.DataFrame(
+        {
+            "node_id": np.arange(len(b.embed)),
+            "node_attr": b.display,
+            "embed_attr": b.embed,
+        }
+    )
     edges_df = pd.DataFrame(
         {
             "src": [s for s, _, _ in b.edges],
