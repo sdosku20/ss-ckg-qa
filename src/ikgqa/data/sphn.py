@@ -206,7 +206,7 @@ OPTIONAL MATCH (dose)-[:hasUnit]->(dose_unit:Unit)
 OPTIONAL MATCH (ad)-[:hasAdministrativeCase]->(case:AdministrativeCase)
 RETURN toString(ad.hasStartDateTime) AS started_at,
        toString(ad.hasEndDateTime)   AS ended_at,
-       id(d)                 AS drug_key,
+       elementId(d)          AS drug_key,
        sub.hasGenericName    AS substance,
        art.hasName           AS article,
        dose.hasValue         AS dose_value,
@@ -424,7 +424,7 @@ class _Builder:
 
 def build_patient_graph(
     rows: Dict[str, Sequence[Dict[str, Any]]],
-    encoder: Any,
+    encoder: Any = None,
     patient_index: int = 0,
     name: Optional[str] = None,
 ) -> Tuple[TextualGraph, pd.DataFrame, GraphStats]:
@@ -437,7 +437,8 @@ def build_patient_graph(
     Args:
         rows: mapping with keys "labs", "diagnoses", "drugs", "cases", each a
             sequence of dicts as returned by the module's Cypher.
-        encoder: anything with ``encode(list[str]) -> [n, d]``.
+        encoder: anything with ``encode(list[str]) -> [n, d]``. None fits a
+            BagOfWordsEncoder on the composed text, which needs no downloads.
         patient_index: recorded in the stats and the graph name.
         name: overrides the graph name.
 
@@ -525,11 +526,23 @@ def build_patient_graph(
 
     # -- embed distinct text once, then map back (the 9,000-fold saving) -----
     unique = sorted(set(b.embed))
+    relations = sorted({r for _, r, _ in b.edges})
+
+    if encoder is None:
+        # Dev-mode default, fitted here rather than by the caller because this is
+        # the only place that knows which strings are actually embedded. Fitting
+        # on the raw database rows instead (the previous behaviour) put every
+        # distinct timestamp and measured value into the vocabulary: on patient
+        # #0 that produced a 15,010-dimensional space for 614 distinct texts,
+        # and let dates dominate a similarity score meant to be about words.
+        from ikgqa.encoders import BagOfWordsEncoder
+
+        encoder = BagOfWordsEncoder(unique + relations)
+
     matrix = np.asarray(encoder.encode(unique), dtype=np.float32)
     lookup = {text: i for i, text in enumerate(unique)}
     node_emb = matrix[[lookup[t] for t in b.embed]]
 
-    relations = sorted({r for _, r, _ in b.edges})
     rel_emb_unique = np.asarray(encoder.encode(relations), dtype=np.float32) if relations else None
     rel_lookup = {r: i for i, r in enumerate(relations)}
     edge_emb = (
@@ -645,31 +658,88 @@ def load_patient_graph(
 ) -> Tuple[TextualGraph, pd.DataFrame, GraphStats]:
     """Fetch and assemble one patient's graph. Convenience wrapper.
 
-    Example, on the CHIL server::
+    On the CHIL server, prefer the module entry point over a multi-line
+    ``python -c``, which the shell mangles on paste::
 
         source ~/.ikgqa.env
-        python -c "
-        from ikgqa.data.sphn import load_patient_graph
-        from ikgqa.encoders import BagOfWordsEncoder
-        g, table, stats = load_patient_graph(0, encoder=None)
-        print(stats.summary())
-        "
+        ~/venvs/ikgqa/bin/python -m ikgqa.data.sphn --patient 0
 
-    With ``encoder=None`` a BagOfWordsEncoder is fitted on the graph's own text,
-    which needs no model download and is enough to inspect structure.
+    With ``encoder=None`` a BagOfWordsEncoder is fitted on the graph's own
+    composed text, which needs no model download and is enough to inspect
+    structure. Real numbers need ``SentenceTransformerEncoder``.
     """
     rows, fetch_stats = fetch_patient_rows(
         patient_index=patient_index, settings=settings, limit=limit, driver=driver
     )
-    if encoder is None:
-        from ikgqa.encoders import BagOfWordsEncoder
-
-        corpus: List[str] = []
-        for group in rows.values():
-            for row in group:
-                corpus.extend(_clean(v) for v in row.values())
-        encoder = BagOfWordsEncoder(corpus)
-
     graph, table, stats = build_patient_graph(rows, encoder, patient_index=patient_index)
     stats.truncated = fetch_stats.truncated
     return graph, table, stats
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """Inspect one patient's graph from the command line.
+
+    Prints only aggregates and SPHN label names -- never a property value -- so
+    the output is safe to paste into a report or an email.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m ikgqa.data.sphn",
+        description="Load one patient's graph from the clinical Neo4j and report its shape.",
+    )
+    parser.add_argument("--patient", type=int, default=0, help="patient index (not an identifier)")
+    parser.add_argument("--limit", type=int, default=20000, help="max rows per query")
+    parser.add_argument(
+        "--retrieve",
+        metavar="QUESTION",
+        help="also run PCST for this question and report the subgraph size",
+    )
+    args = parser.parse_args(argv)
+
+    graph, table, stats = load_patient_graph(patient_index=args.patient, limit=args.limit)
+    print(stats.summary())
+    print()
+    print(graph)
+    print(table["sphn_label"].value_counts().to_string())
+
+    # The ratio that decides whether similarity can identify an instance at all.
+    n_nodes = len(table)
+    n_texts = stats.distinct_embed_texts
+    print(
+        f"\ntext multiplicity: {n_nodes} nodes share {n_texts} distinct embed texts "
+        f"({n_nodes / max(n_texts, 1):.1f} nodes per text)"
+    )
+
+    if args.retrieve:
+        from ikgqa.encoders import BagOfWordsEncoder
+        from ikgqa.retrieval import PCST, assert_valid
+
+        # The question must be encoded in the same vector space as the graph.
+        # build_patient_graph fitted its default encoder on exactly these
+        # strings in exactly this order, so refitting reproduces that space;
+        # the assert makes the assumption fail loudly if that ever changes,
+        # because a silent mismatch yields plausible but meaningless rankings.
+        vocab = sorted(set(table["embed_text"])) + sorted(set(graph.edges["edge_attr"]))
+        encoder = BagOfWordsEncoder(vocab)
+        q_emb = encoder.encode_one(args.retrieve)
+        assert q_emb.shape[0] == graph.node_emb.shape[1], (
+            f"question dim {q_emb.shape[0]} != graph dim {graph.node_emb.shape[1]}; "
+            "the default encoder in build_patient_graph no longer matches this one"
+        )
+
+        # topk_e=0 deliberately: with few, heavily shared relation types the
+        # edge-prize mechanism collapses the effective edge cost towards zero.
+        selection = PCST(topk=3, topk_e=0, cost_e=0.5).retrieve(graph, q_emb)
+        assert_valid(selection, graph)
+        print(
+            f"\nPCST for {args.retrieve!r}: {selection.num_nodes} nodes, "
+            f"{selection.num_edges} edges"
+        )
+        print(table.loc[selection.node_ids, "sphn_label"].value_counts().to_string())
+
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

@@ -226,6 +226,37 @@ reviewed CSV (`code,version,label,parent_label`) committed to the repo, not runt
 Encoder choice (English-only vs multilingual) stays an ablation because the *question*
 language is still unconfirmed — see §7.
 
+**F8. Measured on real data (patient #0, 20 Aug 2026): the loader works and the
+synthetic predictions hold.** One command:
+
+```bash
+source ~/.ikgqa.env && ~/venvs/ikgqa/bin/python -m ikgqa.data.sphn --patient 0
+```
+
+| Quantity | Patient #0 |
+|---|---|
+| Nodes / edges after preparation | 15,810 / 45,562 |
+| Lab observations / distinct analytes | 12,349 / 198 |
+| Drug administrations / distinct drugs | 2,655 / 279 |
+| Diagnoses | 222 |
+| Hospital cases | 106 |
+| Distinct embed texts | **614** |
+| Diagnoses with no description | **178 of 222 (80%)** |
+| Lab tests with no description | 0 of 12,349 |
+
+Three consequences, all Chapter 6 material:
+
+- **Tie domination is real, not a synthetic artefact.** 15,810 nodes share 614
+  distinct texts: 25.7 nodes per text. Similarity can sort the graph into at most
+  614 classes, so within a class the ranking is decided by iteration order. F3 confirmed
+  on real data.
+- **One patient is already 11× a whole WebQSP sample** (1,371 nodes average). Candidate
+  generation is not an optimisation, it is a precondition — and note this is *one* of
+  1,197 patients.
+- **The text gap is entirely on the diagnosis side.** Labs are fully described; 80% of
+  this patient's diagnoses are unreachable by similarity under any wording. That makes
+  the F6 cross-walk the highest-value single piece of work left.
+
 **F7. Upstream returns edge ids unsorted.** `decode_solution` concatenates solver edges
 with edges recovered from virtual nodes and never re-sorts, so `selected_edges` comes
 back in solver order (e.g. `[12, 6, 5, 2]`). Harmless for set-based metrics, but anything
@@ -263,21 +294,25 @@ second week and closely repeats Chapter 1.
 
 ## 5. Next actions, in order
 
-1. **Share the `recon.py` output** (label counts, relationship types, property names,
-   degree stats) so the loader is written against the real schema, not a guess.
-2. **Build the Neo4j loader** — read-only Cypher into `TextualGraph`, credentials from
-   the env vars.
-3. **Decide the node-text format.** Highest-leverage choice in the whole pipeline.
-   `"Diagnosis: chronic kidney disease stage 5 (ICD-10 N18.5)"` gives a sentence encoder
-   real language; a bare `SCTID:709044004` gives it nothing. See thesis §1.3.
-4. **Candidate generation.** G-Retriever assumes one modest graph per question
-   (WebQSP averages 1,371 nodes per sample). If STCS is one large instance graph, PCST
-   needs a narrowing step first — cohort filter or k-hop around seeds. This is a
-   Methodology decision, not a workaround.
-5. **SnapQuery baseline harness.** `POST /chat/` then `/chat/continue` on port 8002,
-   with the slot-filling questions answered and the confirmation gate simulated.
-   Needs no database access — can be built any time.
-6. **Real embeddings** — SentenceBERT over the composed node text.
+Done: recon, loader, node-text format, first real-data run (F8).
+
+1. **Get real questions.** This is now the only hard blocker: the metric, the SnapQuery
+   comparison and the gold set all need them, and they all depend on other people.
+   Chase Andi — see §6. Nothing downstream can be finished without this.
+2. **Terminology cross-walk** (F6 resolution). 80% of patient #0's diagnoses have no
+   text at all, so this is the single highest-value piece of code left. Public catalogue
+   data, committed as `terminology/*.csv` (the `.gitignore` exception exists for it).
+   First check what the server can reach: `pip` works, arbitrary HTTP may not — if not,
+   fetch on the laptop and `scp` it over.
+3. **Real embeddings.** `pip install sentence-transformers`, then encode the 614 distinct
+   texts per patient on the A100. Note the encoding cost is per *distinct text*, not per
+   node, so this is small — 614 encodes for 15,810 nodes.
+4. **Candidate generation.** With one patient at 15,810 nodes, PCST needs a narrowing
+   step before it, not after. Methodology decision, not a workaround.
+5. **SnapQuery baseline harness.** `POST /chat/` then `/chat/continue` on port 8002, with
+   slot-filling answered and the confirmation gate simulated. Needs no database access.
+6. **Measure raw vs prepared** node counts for one patient, to justify graph preparation
+   with a number in Chapter 6 instead of an argument.
 
 ---
 
