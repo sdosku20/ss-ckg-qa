@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ikgqa"
+version = "0.1.0"
+description = "Intent-aware subgraph selection for clinical knowledge graph question answering"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"          # SPDX string; the TOML-table form is deprecated (setuptools>=77)
+authors = [{ name = "Serxhio Dosku", email = "s.dosku@stud.unibas.ch" }]
+
+# numpy<2 is mandatory, not stylistic: the pcst_fast wheel is built against the
+# NumPy 1.x C ABI. Under NumPy 2 it imports fine and returns arrays of the right
+# shape filled with garbage. ikgqa.pcst.core.check_pcst_fast_sanity() detects it
+# at runtime, but the pin is what prevents it.
+dependencies = [
+    "numpy<2",
+    "pandas>=2.0",
+    "pcst_fast>=1.0.10",
+]
+
+[project.optional-dependencies]
+# Enables the upstream-equivalence test (which runs the verbatim G-Retriever
+# code as an oracle) and lets the PCST module accept torch_geometric graphs.
+oracle = ["torch", "torch_geometric"]
+# Real sentence embeddings. Not needed for development against toy graphs.
+embeddings = ["sentence-transformers"]
+# The clinical graph backend.
+neo4j = ["neo4j>=5.0"]
+dev = ["pytest>=7", "pytest-cov", "ruff"]
+
+[project.scripts]
+ikgqa-demo = "ikgqa.demo:main"
+ikgqa-report = "ikgqa.eval.toy_report:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Strict about warnings becoming visible; a NumPy dtype warning here usually
+# means an embedding matrix silently changed precision.
+filterwarnings = ["default"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# core.py and reference.py mirror upstream code deliberately; do not reformat
+# their idioms away.
+[tool.ruff.lint.per-file-ignores]
+"src/ikgqa/pcst/reference.py" = ["ALL"]
+"src/ikgqa/pcst/core.py" = ["E501"]

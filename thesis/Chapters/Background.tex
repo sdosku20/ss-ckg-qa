@@ -1,0 +1,462 @@
+% !TEX root = ../Thesis.tex
+% ============================================================
+\chapter{Background} \label{chapter:background}
+% ============================================================
+
+% EDITORIAL NOTE (revision, 20 Aug 2026). This chapter was flagged as repetitive
+% together with Chapter 1. Four specific causes were removed:
+%   * the opening paragraph was a prose table of contents that restated every
+%     section heading. LaTeX already produces one.
+%   * "Chapter 3 gives the mathematical detail" appeared four times (chapter
+%     opening, twice in Section 2.5, and in the summary). It now appears once,
+%     in Section 2.5, at the point a reader first wants it.
+%   * the comparison of selection families was made twice, in Section 2.4 and
+%     again in Section 2.5. Section 2.4 is now its only home and carries a
+%     table, so the comparison need not be restated in prose.
+%   * Section 2.8 restated the research gap already stated at the end of
+%     Section 2.7.6. It now does a different job: it relates the surveyed
+%     methods to the measured properties of this graph and names the failure
+%     modes those properties predict.
+% Two subsections were added rather than trimmed: the SPHN subsection was a
+% placeholder and now carries the completed schema review, and clinical
+% terminologies are given their own subsection because the multilingual
+% terminology problem turned out to be one of the thesis's contributions.
+
+This chapter builds up the background in three steps: retrieval over text and
+then over graphs (Sections~\ref{sec:kg-neo4j}--\ref{sec:graph-retrieval}), the
+narrower question of \emph{which} part of a graph to retrieve
+(Sections~\ref{sec:subgraph-selection-approaches}--\ref{sec:gnn-llm}), and the
+clinical setting in which this thesis asks that question
+(Section~\ref{sec:clinical-kg}). Section~\ref{sec:background-summary} closes by
+relating the surveyed methods to the graph measured in
+Section~\ref{sec:problem-statement}, which is where the reasons to expect
+trouble first become concrete.
+
+\section{Knowledge Graphs and Graph Databases} \label{sec:kg-neo4j}
+
+A knowledge graph represents information as a set of entities and the relations
+between them, rather than as rows in a table or paragraphs in a document.
+Concretely, it consists of nodes, each standing for one entity such as a person,
+a drug, or a diagnosis, connected by directed, typed edges that state how two
+entities relate, for instance that a particular drug treats a particular
+condition. This structure matters for two reasons that recur throughout this
+thesis. First, it is explicit: every fact is a node or an edge that can be looked
+up, corrected, or removed on its own, rather than being buried inside a block of
+free text. Second, it suits questions that require connecting several facts,
+since answering such a question becomes a matter of following edges from one node
+to the next rather than searching through unrelated documents.
+
+Knowledge graphs are stored and queried through graph databases, and one of the
+most widely used is Neo4j~\cite{neo4j2026}. Neo4j represents data as a property
+graph, meaning that both nodes and edges can carry arbitrary key--value
+properties in addition to their type, and it is queried with
+Cypher~\cite{francis2018cypher}, a query language built for describing graph
+patterns rather than table joins. A query such as
+\texttt{MATCH (d:Drug)-[:TREATS]->(c:Condition \{name: "X"\}) RETURN d} reads
+close to the pattern it looks for: find drug nodes connected by a \texttt{TREATS}
+edge to a condition node named X. Neo4j is the database underlying both SnapQuery
+and the retrieval method developed here, so the graph this thesis works with is,
+at the storage level, a Neo4j property graph, even though the schema that defines
+its structure is expressed in a different formalism
+(Section~\ref{subsec:sphn-schema}).
+
+\section{Retrieval-Augmented Generation} \label{sec:rag-background}
+
+Large language models generate fluent text, but the knowledge stored in their
+weights during training is fixed and general purpose, which leaves them prone to
+hallucination: stating something confidently that is simply wrong.
+Retrieval-Augmented Generation (RAG), introduced by Lewis et
+al.~\cite{lewis2020rag}, addresses this by retrieving relevant evidence from an
+external knowledge source at query time and conditioning the model's output on
+that evidence, rather than relying solely on what the model already encodes
+internally. In its original form, the knowledge source is a large collection of
+text passages, and retrieval means picking out the passages whose text is closest
+to the query.
+
+This works well for many tasks, but it has one limitation that matters here: a
+flat collection of passages carries no relational structure. Two passages
+connected through some intermediate concept, say two drugs that each interact
+with the same enzyme, are treated as entirely independent by the retriever, and
+the retrieval step cannot follow a chain of relations from one to the other. That
+becomes an obstacle whenever an answer depends on connecting several facts, which
+is exactly what knowledge graph question answering requires. A question such as
+``which drugs treat a disease that shares a symptom with condition X?'' cannot be
+answered from isolated passages, because the reasoning path runs through the
+graph rather than sitting inside any single one of them.
+
+\section{From Text Retrieval to Graph Retrieval} \label{sec:graph-retrieval}
+
+Several lines of work adapt retrieval to graph-structured knowledge, each
+addressing that limitation differently. KAPING~\cite{baek2023kaping} retrieves
+the top-$k$ triples ranked most similar to the query by embedding similarity, a
+measure of how close two pieces of text are in meaning computed as the distance
+between their vector representations, and prepends them as flat text to the
+prompt. This is fast and simple, but it inherits the connectivity blindness of
+text-based RAG, since triples are still selected independently with no guarantee
+that they form a coherent chain. Think-on-Graph~\cite{sun2024thinkongraph} takes
+the opposite approach: it performs an iterative search over the graph, using the
+LLM itself to decide which relation to follow at each step. The paths it produces
+are more coherent, but the method needs several LLM calls per query, which becomes
+expensive at scale. StructGPT~\cite{jiang2023structgpt} and
+MindMap~\cite{wen2023mindmap} construct explicit reasoning chains over a
+knowledge graph before generation, with MindMap applied specifically to
+biomedical problems.
+
+A related idea, Microsoft's GraphRAG~\cite{edge2024graphrag}, builds
+community-level summaries over an LLM-constructed graph, which suits broad,
+corpus-level questions better than the entity-specific questions studied here.
+QA-GNN~\cite{yasunaga2021qagnn} pairs a language model directly with a graph
+neural network; Section~\ref{sec:gnn-llm} returns to it once graph neural
+networks have been introduced. What these methods share is the insight that
+incorporating graph structure into retrieval improves on flat text retrieval, and
+what they also share is that they were designed for small or synthetic graphs
+rather than for the large, dense graphs typical of hospital data.
+
+\section{Subgraph Selection Approaches} \label{sec:subgraph-selection-approaches}
+
+The methods above retrieve individual pieces of a graph, but say little about how
+those pieces should be combined into the connected region eventually handed to
+the LLM. This section is the single place in the thesis where the families of
+subgraph selection strategies are compared; later chapters refer back to it
+rather than restating the comparison. The axis that separates them in practice is
+how each one handles connectivity, and Table~\ref{tab:selection-families}
+summarises the result.
+
+The simplest strategy, top-$k$ selection, scores every node and edge by
+similarity to the query and keeps the $k$ highest-scoring ones, with $k$ fixed in
+advance. Because each item is scored independently this is fast, and the size of
+the result is known exactly, but there is no guarantee that the returned facts
+relate to one another, which hurts both answer quality and interpretability.
+Neighbourhood expansion methods add connectivity by collecting the $h$-hop
+neighbourhood of the selected nodes, meaning every node reachable within $h$
+steps. Connectivity is then guaranteed by construction, but size control is lost:
+in a dense graph the neighbourhood grows by orders of magnitude per hop, and $h$
+is an integer, so there is no setting available between too small and far too
+large. Path-based methods instead connect the selected entities through the
+graph, which also guarantees a connected result, but they can pull in long paths
+through unrelated intermediate nodes and offer no direct handle on subgraph size.
+LLM-guided traversal, as in Think-on-Graph, decides each step with a model call
+and so pays a cost per question that the others do not.
+
+PCST, described in the next section, is the only family in the table that offers
+both a connectivity guarantee and a continuous size parameter, because it treats
+the two as terms of a single objective rather than as separate stages.
+
+\begin{table}[t]
+\centering
+\caption{Families of subgraph selection strategies. ``Size control'' asks whether
+the strategy exposes a parameter that predictably bounds the size of the returned
+subgraph on a \emph{dense} graph; this is where neighbourhood expansion and
+path-based methods differ from the other three.}
+\label{tab:selection-families}
+\begin{tabular}{llll}
+\toprule
+Family & Connected result & Size control & Cost per question \\
+\midrule
+Top-$k$ similarity      & no  & exact, via $k$            & one encoding pass \\
+Neighbourhood expansion & yes & coarse, via hops $h$      & one traversal \\
+Path-based              & yes & none direct               & one or more traversals \\
+LLM-guided traversal    & yes & none direct               & several LLM calls \\
+PCST                    & yes & continuous, via edge cost & one optimisation \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{G-Retriever and Prize-Collecting Steiner Tree Selection} \label{sec:gretriever-pcst}
+
+G-Retriever~\cite{he2024gretriever} is the system this thesis builds on. This
+section describes what it does and why the formulation is attractive; Chapter~3
+gives the mathematical treatment, including the exact prize and cost definitions,
+the virtual-node transformation that lets edges carry prizes, and the
+approximation guarantee of the solver used. The division is deliberate: the
+argument of this chapter does not depend on the algebra, and the algebra is
+easier to read once the argument is in place.
+
+G-Retriever runs in four stages. First, every node and edge in the graph has its
+text description encoded into a vector with a sentence
+encoder~\cite{reimers2019sentencebert}, and the query is encoded the same way;
+the nodes and edges whose vectors sit closest to the query's become the initial
+candidates, exactly as in the similarity-based methods above. Second, rather than
+returning those candidates directly, G-Retriever treats subgraph construction as
+an optimisation problem: find a connected subgraph that keeps as much of the
+total relevance, or ``prize'', of the candidate nodes and edges as possible while
+paying a cost for every edge needed to connect them. This is the
+Prize-Collecting Steiner Tree (PCST) problem~\cite{bienstock1993pcst}, a
+classical combinatorial optimisation problem originally studied in network
+design. Framing selection this way has a useful consequence: a node of only
+moderate relevance can still be worth including if it lies on a short path
+between two highly relevant nodes, because the prize gained by connecting them
+can outweigh the cost of the extra edge. Such a node is invisible to any method
+that scores nodes independently.
+
+Third, once the connected subgraph has been found, its structure is encoded by a
+graph neural network into a short vector summary, and fourth, that summary is
+prepended to the LLM's input as an additional, learned token, often called a soft
+prompt because it behaves like part of the prompt without being ordinary text. On
+the general-purpose benchmarks G-Retriever was evaluated on, the pipeline cut the
+number of tokens needed by up to 99\% compared with serialising the whole graph
+as text, while also reducing hallucination~\cite{he2024gretriever}. Whether those
+benefits carry over to a dense, specialised clinical graph is the central
+empirical question of this thesis.
+
+\section{Graph Neural Networks and LLMs on Graphs} \label{sec:gnn-llm}
+
+The soft-prompt construction just described is one of two broad strategies for
+combining a graph neural network (GNN), a network that computes a representation
+for each node by repeatedly combining it with its neighbours'
+representations~\cite{velickovic2018gat}, with a language model. It compresses
+the graph into a fixed prefix before generation begins. The other strategy,
+illustrated by QA-GNN~\cite{yasunaga2021qagnn}, lets the GNN and the language
+model exchange information throughout encoding, so the two representations inform
+each other as they are built rather than one being frozen before the other
+starts. Applied to medical question answering, QA-GNN first extracts a small
+question-specific subgraph and then runs a GNN over it jointly with the language
+model.
+
+QA-GNN matters here for two reasons beyond the architectural contrast. It is an
+early demonstration that a question-specific subgraph combined with a graph
+encoder improves question answering over text-only retrieval, and its two-stage
+shape, isolate a subgraph first and encode it second, is the shape studied in this
+thesis. Where this thesis differs is in where it puts its attention: QA-GNN and
+G-Retriever both treat subgraph extraction as a preliminary and the encoder as
+the contribution, whereas here the extraction step \emph{is} the object of study,
+and the generation stage is held fixed so that differences in the final answer
+can be attributed to what was retrieved. For a broader overview of how GNNs and
+LLMs have been combined on graph tasks, see the survey by Jin et
+al.~\cite{jin2023llmgraphsurvey}.
+
+\section{The Clinical Setting: STCS, SPHN, and SnapQuery} \label{sec:clinical-kg}
+
+\subsection{Curated Ontologies and Mined Knowledge Graphs} \label{subsec:curated-ontologies}
+
+Clinical and biomedical knowledge graphs are built from two main kinds of source.
+Curated ontologies such as SNOMED~CT~\cite{snomedct} and
+UMLS~\cite{bodenreider2004umls} encode expert-validated medical knowledge as
+structured hierarchies and relational networks, with well-typed nodes and edges
+that can generally be trusted for clinical applications. Automatically mined
+knowledge graphs, built from electronic health records~\cite{rotmensch2017learning},
+cover emerging or institution-specific knowledge but may contain noise, since
+they are extracted rather than curated.
+
+The graph studied here is of a third kind, which is worth naming because it
+changes what retrieval has to cope with. It is neither a curated ontology of
+general medical knowledge nor a mined approximation of one, but a
+schema-constrained record of \emph{what happened to particular patients}. Its
+nodes are events and measurements rather than concepts, and general medical
+knowledge enters it only indirectly, through the terminology codes those events
+reference (Section~\ref{subsec:terminologies}). A retriever therefore cannot rely
+on the semantic richness that makes ontology nodes easy to match against a
+question, because most nodes in this graph are not concepts at all.
+
+\subsection{The Swiss Transplant Cohort Study} \label{subsec:stcs-background}
+
+The Swiss Transplant Cohort Study (STCS) is a nationwide, prospective cohort that
+has enrolled essentially all solid organ transplant recipients in Switzerland
+since 2008, across the country's transplant centers, including University
+Hospital Basel~\cite{koller2013stcs}. It was established because organ
+procurement in Switzerland was already well organised at the national level while
+transplant outcomes were not being tracked systematically across centers. STCS
+collects detailed, longitudinal clinical data on each patient, covering the
+transplantation itself, subsequent complications such as infections and rejection
+episodes, and long-term follow-up, and has since supported several hundred
+research projects in transplantation medicine. The data this thesis works with is
+the STCS data held at University Hospital Basel, represented as a knowledge graph
+rather than as the flat tables the cohort was originally collected in.
+
+That change of representation is not cosmetic. A cohort table has one row per
+patient per visit, and its columns are the questions the cohort was designed to
+answer. A graph has no privileged shape, so a question nobody anticipated can
+still be expressed. That is the reason for building the graph, and it is also the
+reason retrieval over it is hard: nothing in the structure marks which nodes
+matter for a given question.
+
+\subsection{The Swiss Personalized Health Network (SPHN) Schema} \label{subsec:sphn-schema}
+
+Turning STCS data into a usable knowledge graph requires a schema that fixes what
+kinds of entities and relations may appear in it, and in Switzerland that schema
+is defined nationally rather than by each hospital independently. The Swiss
+Personalized Health Network (SPHN) schema~\cite{sphnschema} is written in the
+Resource Description Framework (RDF), a W3C standard that represents data as
+subject--predicate--object triples and lets a schema fix the permitted concept
+classes and the properties linking them~\cite{rdfschema}. Aligning to a national
+standard rather than to a one-off local schema keeps a pipeline built on it
+portable across hospital sites, which matters because the STCS cohort spans every
+transplant center in the country.
+
+Two properties of the schema shape everything that follows, and both were
+confirmed against the live graph during this project.
+
+\paragraph{Reification.} SPHN models values, units, codes and body sites as
+\emph{their own concept classes} rather than as attributes of the clinical event
+that uses them. In the property-graph rendering, each RDF class becomes a node
+label, each object property becomes a typed relationship, and only datatype
+properties become node properties. A single laboratory result is therefore not
+one node but a small subgraph: an observation node linked to a quantity node,
+which is linked to a unit node, while the observation is also linked to a test
+type, which is linked to a code, which carries the human-readable description.
+One clinical fact spans on the order of five to seven nodes, which is the direct
+explanation for the roughly 18{,}000 nodes per patient reported in
+Section~\ref{sec:problem-statement}.
+
+\paragraph{Text lives on shared nodes, not on event nodes.} Because descriptions
+sit on code nodes, and code nodes are shared by every event that references them,
+the text available to an embedding-based retriever is attached to the wrong
+objects. The event a question is actually about carries a timestamp and an
+identifier; the words a question can match live one or two hops away, on a node
+shared with thousands of other events. This is what produces the
+sparse-and-shared-text property reported in
+Section~\ref{sec:problem-statement}, and it is why Chapter~4 introduces a graph
+preparation step that folds shared terminology text into the events that
+reference it before any embedding is computed.
+
+% TODO (confirm with the STCS Data Center): the label carrying diagnoses in this
+% instance is BilledDiagnosis. Confirm that billed diagnoses are the right
+% clinical object for the questions users actually ask, rather than a separate
+% clinically-recorded diagnosis label. If not, the diagnosis queries change but
+% nothing else in the pipeline does.
+The concept classes relevant to this thesis are the subject identifier, the
+administrative case that groups one hospital stay, laboratory observations with
+their test types, diagnoses, and drug administration events with the drugs they
+administer. Alongside these sit provenance classes recording which source system
+and data release each fact came from. Those provenance nodes are the ones whose
+degree was measured in Section~\ref{sec:problem-statement}: they are correct,
+required by the schema, and ruinous for connectivity-based retrieval, because they
+place almost every pair of nodes within a few hops of one another.
+
+\subsection{Clinical Terminologies and the Multilingual Problem} \label{subsec:terminologies}
+
+SPHN does not invent a vocabulary of clinical concepts but reuses established
+terminologies, and in the graph studied here five of them appear together.
+Laboratory tests are coded with LOINC~\cite{loinc}, whose English descriptions
+are present for every one of the 544 distinct test codes in the cohort.
+Diagnoses are coded with ICD-10-GM, the German national modification of
+ICD-10~\cite{icd10}, versioned by year, and 2{,}921 distinct codes appear across
+thirteen annual versions. Drugs are coded with ATC~\cite{atc}, units with UCUM,
+and a small number of concepts with SNOMED~CT~\cite{snomedct}.
+
+This mixture creates a problem that the general-domain literature does not have
+to confront, and it is easy to miss because it announces itself in no error
+message. The descriptions carried by the graph are in different languages
+depending on which terminology a node belongs to: LOINC descriptions are English,
+ICD-10-GM descriptions are German. G-Retriever's sentence encoder,
+\texttt{all-roberta-large-v1}, is English-only. Embedding the labels the graph
+happens to carry therefore under-ranks the entire diagnosis portion of the graph
+relative to the laboratory portion, for a reason that has nothing to do with
+clinical relevance. Because the distortion correlates with entity type rather
+than with question difficulty, it does not appear as noise in an aggregate recall
+figure; it appears as a consistent and plausible-looking preference for
+laboratory evidence. A second, compounding gap is that 1{,}949 of the 2{,}921
+diagnosis codes carry no description in the graph at all, leaving nodes that
+similarity search cannot reach under any wording of any question.
+
+Both problems have the same solution, and it is not translation. A terminology
+code is language-independent by construction: \texttt{N18.5} denotes the same
+concept whichever language its label is written in. Resolving codes against their
+published catalogues therefore replaces a translation problem with a lookup, and
+a lookup is deterministic, auditable and reproducible in a way that machine
+translation of clinical shorthand is not. It also fills the missing descriptions,
+because a catalogue entry exists whether or not the local graph stored a label.
+Chapter~4 specifies the procedure, including the fallback tiers used when no
+catalogue entry is found and the reporting of how many nodes each tier accounts
+for, and Chapter~6 reports what difference it makes. The point to carry forward
+is that terminology resolution is not preprocessing hygiene in this setting but a
+precondition for the retrieval signal to mean anything, and that it is also the
+mechanism by which results obtained on a German-coded cohort stay meaningful for
+a cohort coded in another language.
+
+\subsection{SnapQuery: The System Already in Use at STCS} \label{subsec:snapquery-background}
+
+SnapQuery is the assistant that clinicians and researchers at the STCS Data
+Center, University Hospital Basel, use today to ask questions about hospital data
+in plain language~\cite{snapquery2026}. It sits as an access layer between its
+users and the hospital's data backends: given a question, it has a language model
+write a single read-only database query, executes that query, and returns a
+structured answer bundling a natural-language response, the generated query
+itself, and the matching rows. Its purpose is to remove the data manager as a
+mandatory intermediary for routine access, not to replace the data infrastructure
+it queries. SnapQuery supports two independent paths, a graph path against three
+hospital Neo4j knowledge graphs (University Hospital Basel, Inselspital Bern and
+CHUV Lausanne) and a tabular path against a roughly 230-table PostgreSQL clinical
+warehouse at Basel. Only the graph path is relevant here, since the STCS cohort
+studied in this thesis is one of the graph-backed centers.
+
+The graph path is a LangGraph agent: an assistant component performs the LLM
+reasoning and decides which tool to call, a tool component executes that action,
+and the two alternate until an answer is ready. Its system prompt embeds the
+session center's live Neo4j schema together with a slot-filling policy that asks
+at most two clarifying questions per turn to establish details such as the time
+window, cohort or output shape, and it generates and executes a query only once
+the user has explicitly confirmed what is about to run. Schema lookup and Cypher
+generation are delegated to a self-hosted planner model, Qwen2.5-14B-Instruct,
+which reasons over the schema returned by a dedicated lookup tool and produces
+Cypher through a retrieval-augmented chain that validates the query before it
+runs, with preview rows capped between one and fifty. One design difference is
+worth keeping in mind: unlike the tabular path, the graph agent uses no vector
+store for schema retrieval, judging relevance by having the planner model read
+the full live schema, whereas the method developed in this thesis is
+embedding-based throughout. The comparison in Chapter~6 is therefore between a
+schema-reading query generator and a text-similarity retriever, not between two
+variants of one mechanism.
+
+What matters most for this thesis is what SnapQuery ultimately returns: one
+generated Cypher query and the rows it produces, with no explicit subgraph of
+intermediate nodes or edges. Chapter~4 treats the entities touched by that result
+set as SnapQuery's induced subgraph, which is what makes it possible to score the
+two systems on a single metric. One consequence of that choice, that SnapQuery
+yields a single point rather than a curve because it exposes no size parameter to
+sweep, is stated there as a limitation of the comparison rather than hidden
+inside it.
+
+\subsection{LLM Prompting over Clinical Knowledge Graphs} \label{subsec:llm-clinical-prompting}
+
+Recent work has begun combining clinical knowledge graphs with LLM prompting for
+decision support. Soman et al.~\cite{soman2024biomedical} use a biomedical
+knowledge graph to construct optimised prompts for LLMs, and
+MindMap~\cite{wen2023mindmap} builds explicit reasoning maps over a medical
+knowledge graph before generation. Both draw on curated biomedical knowledge
+rather than on patient-level hospital records, which is exactly the distinction
+drawn in Section~\ref{subsec:curated-ontologies}. To the best of our knowledge,
+no existing work applies connectivity-constrained, PCST-style subgraph selection
+to a patient-level clinical knowledge graph, evaluates such selection against a
+deployed clinical query system, or examines the effect of intent and schema
+signals within such a retrieval framework.
+
+\section{Summary: What the Surveyed Methods Assume} \label{sec:background-summary}
+
+The methods reviewed in this chapter share three assumptions, and the graph
+measured in Section~\ref{sec:problem-statement} violates all three. Naming them
+here converts the survey above into three specific, testable predictions, which
+Chapter~3 formalises and Chapter~6 tests.
+
+The first assumption is that node text is discriminative: that similarity to a
+question can tell one node from another. Under reification and shared terminology
+text (Sections~\ref{subsec:sphn-schema} and~\ref{subsec:terminologies}) thousands
+of nodes carry identical text, so the ranking within a tied group is decided by
+whatever order the implementation happens to iterate in rather than by relevance.
+The prediction is that similarity can identify which \emph{kind} of fact a
+question concerns but not \emph{which instance}, and that instance selection must
+therefore come from structure or from time.
+
+The second assumption is that a relation type is informative about relevance.
+G-Retriever assigns prizes to edges by ranking relation text against the
+question, dividing a fixed budget among the edges tied at each rank. That is
+reasonable when a graph has many relation types each used a few times, as in the
+open-domain benchmarks. It fails when a graph has few relation types each used
+millions of times, because the per-edge share of the budget becomes negligible
+and, through the cost-adjustment step that keeps costs below the largest prize,
+drags the effective edge cost towards zero with it. The prediction is that the
+size dial stops working and the method returns everything it is given.
+
+The third assumption is that connectivity is a scarce resource worth paying for.
+That holds in a sparse graph of clinical concepts. It does not hold once
+provenance nodes of very high degree are present, because then almost any two
+nodes are already close together and a connectivity requirement costs nothing to
+satisfy. The prediction is that connectivity becomes meaningful only after such
+nodes are excluded, and that the effect of excluding them shows up in what the
+retrieved subgraph contains rather than in how large it is.
+
+None of the three is a flaw in G-Retriever, which was designed for and validated
+on a different kind of graph. They are the price of the transfer, and the reason
+this thesis measures it rather than assuming it. Chapter~4 turns each prediction
+into a methodological choice that can be enabled and disabled independently, so
+that the contribution of each can be reported on its own.

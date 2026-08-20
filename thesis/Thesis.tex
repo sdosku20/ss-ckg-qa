@@ -1,0 +1,129 @@
+%% ----------------------------------------------------------------
+%% Thesis.tex -- main
+%% ----------------------------------------------------------------
+
+\documentclass[a4paper, 10pt, oneside]{memoir}
+\usepackage{basilea}
+\usepackage{float}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+% The preparation document / bibliography use full author lists (no "et al."),
+% which matches the default thesis.bst numeric style already provided by basilea.sty.
+% References live in references.bib rather than thesis.bib, so \thesisbib is redefined here.
+\renewcommand*{\thesisbib}{\cleardoublepage\renewcommand*{\contentsname}{\iflanguage{english}{Bibliography}{Literaturverzeichnis}} \createplainmark{bib}{both}{\iflanguage{english}{Bibliography}{Literaturverzeichnis}}\bibliographystyle{\basileaBibStyle}\bibliography{references}}
+
+%% ----------------------------------------------------------------
+
+\title        {Intent-Aware Subgraph Selection for Clinical Knowledge Graph Question Answering}
+\thesistype   {Master's Thesis}
+
+\department   {Department of Mathematics and Computer Science}
+\faculty      {Faculty of Science}
+\research     {Artificial Intelligence Group}
+
+\examiner     {Dr.\ Malte Helmert}
+\supervisor   {Dr.\ Florian Pommerening, Andi Zyberi}
+
+\authors      {Serxhio Dosku}
+\email        {s.dosku@stud.unibas.ch}
+\immatriculnr {24-061-160}
+
+% Fill in once the submission date is confirmed.
+\date         {}
+
+\ulogo        {Template/logo-en}
+
+%% ----------------------------------------------------------------
+\begin{document}
+
+\selectlanguage{english}
+\hypersetup{pdftitle={\@Master Thesis  Serxhio Dosku}}
+\hypersetup{pdfauthor={Serxhio Dosku}}
+
+\thesisfront
+
+% ----------------------------------------------------------------
+% Title page, carried over from the thesis preparation document
+% (Preparation_Thesis_Serxhio_Dosku.pdf / prep_thesis_final.tex) almost unchanged,
+% only "Master's Thesis Preparation" becomes "Master's Thesis" and the submission
+% date is left as a TODO until it is known.
+% ----------------------------------------------------------------
+\clearpage
+\thispagestyle{empty}
+\begin{center}
+\vspace*{1.5cm}
+
+\includegraphics[width=0.42\textwidth]{Template/logo-en}
+
+\vspace{2.8cm}
+
+{\LARGE\scshape Intent-Aware Subgraph Selection \\ for Clinical Knowledge Graph Question Answering\par}
+
+\vspace{1.2cm}
+
+{\large Master's Thesis\par}
+
+\vspace{1.1cm}
+
+{University of Basel\par}
+{Faculty of Science\par}
+{Department of Mathematics and Computer Science\par}
+{Artificial Intelligence Group\par}
+
+\vspace{3cm}
+
+\begin{minipage}[t]{0.48\textwidth}
+\raggedright
+submitted by:\\[0.35cm]
+\textbf{Serxhio Dosku}\\
+Matriculation No.: 24-061-160\\
+Email: s.dosku@stud.unibas.ch
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\raggedright
+supervised by:\\[0.35cm]
+\textbf{Dr.\ Malte Helmert}\\
+\textbf{Dr.\ Florian Pommerening}\\
+\textbf{Andi Zyberi}\\[0.6cm]
+Submission date, place:\\[0.15cm]
+% Fill in once the submission date is confirmed.
+\textbf{, Basel}
+\end{minipage}
+
+\vfill
+
+\noindent\rule{\textwidth}{0.4pt}\\[0.15cm]
+\end{center}
+\clearpage
+
+\pagestyle{thesis}
+%% ----------------------------------------------------------------
+\input{./Front/Acknowledgment}
+%% ----------------------------------------------------------------
+\input{./Front/Abstract}
+%% ----------------------------------------------------------------
+\thesistoc
+%% ----------------------------------------------------------------
+\thesismain
+\input{./Chapters/Introduction}
+\input{./Chapters/Background}
+% Not yet written (planned chapters, see Section~\ref{sec:thesis-structure}):
+% \input{./Chapters/GRetrieverPCST}   % Chapter 3
+% \input{./Chapters/Methodology}      % Chapter 4
+% \input{./Chapters/Implementation}   % Chapter 5
+% \input{./Chapters/Results}          % Chapter 6
+% \input{./Chapters/Conclusion}       % Chapter 7
+%% ----------------------------------------------------------------
+\thesisappendix
+\thesisbib
+%% ----------------------------------------------------------------
+%\thesisback
+%\iflanguage{english}
+ % {\includepdf{./Back/wissensch_Redlichkeit_E_09-2023.pdf}}
+  %{\includepdf{./Back/wissensch_Redlichkeit_D_09-2023.pdf}}
+%% ----------------------------------------------------------------
+\end{document}
+%% ----------------------------------------------------------------

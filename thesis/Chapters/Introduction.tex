@@ -1,0 +1,213 @@
+% !TEX root = ../Thesis.tex
+% ============================================================
+\chapter{Introduction} \label{chapter:introduction}
+% ============================================================
+
+% EDITORIAL NOTE (revision, 19 Aug 2026): the previous draft was flagged as
+% repetitive. The cause was that four ideas each had three or four homes: the
+% context-window argument, the top-k/expansion/path comparison, the description
+% of SnapQuery, and the two-phase evaluation plan. This revision gives every
+% idea exactly one home and cross-references it elsewhere:
+%   * context-window argument ......... Section 1.2, once
+%   * comparison of selection families  Chapter 2 only (was also in 1.2)
+%   * what SnapQuery is ............... Section 2.7.4 only (was in 1.1, 1.3, 1.4, 2.7.4)
+%   * two-phase evaluation ............ Section 1.4 only (was in Abstract, 1.4, 1.5)
+%   * answer-node recall definition ... Section 1.3, once; used by name thereafter
+% Section 1.2 now also states the measured properties of the graph, which
+% replaces generic claims about clinical graphs with facts about this one.
+
+A hospital knowledge graph and a large language model (LLM) are complementary in
+an obvious way. The graph holds clinical facts in a form that can be inspected,
+corrected and audited one edge at a time; the model lets someone ask about those
+facts without knowing a query language. Putting the two together is attractive
+precisely because neither substitutes for the other: the graph supplies
+trustworthiness, the model supplies access.
+
+What decides whether such a system works is a step that is easy to underestimate.
+Before an LLM can answer anything, something must choose which part of the graph
+it gets to see. This thesis studies that choice, called \emph{subgraph
+selection}, on a clinical knowledge graph that is in daily use at University
+Hospital Basel, and compares one principled strategy for making it against the
+system that answers these questions there today.
+
+\section{Motivation} \label{sec:motivation}
+
+Two things make this worth studying rather than assuming.
+
+The first is that the leading method in the general-purpose setting has never
+been tested in this one. G-Retriever~\cite{he2024gretriever} formulates subgraph
+selection as a Prize-Collecting Steiner Tree (PCST) problem, so that relevance
+and subgraph size are traded off inside a single optimisation rather than by
+post-hoc filtering, and reports large gains on general textual graphs. Its
+benchmarks, however, are small and open-domain: on WebQSP each question arrives
+with its own pre-extracted subgraph averaging 1{,}371 nodes. A hospital graph is
+a different object, and Section~\ref{sec:problem-statement} gives the measured
+respects in which it differs.
+
+The second is the nature of the comparison. The system this thesis measures
+against, SnapQuery (Section~\ref{subsec:snapquery-background}), is not a research
+baseline reimplemented for the purpose. It is a deployed service that clinicians
+and data managers at the STCS Data Center rely on, built by the people who
+maintain the graph, and tuned against the questions its users actually ask.
+Outperforming it is a stronger claim than outperforming a paper baseline, and
+failing to outperform it is a more informative result.
+
+\section{Problem Statement} \label{sec:problem-statement}
+
+Passing the whole graph to the model is not an option. Serialising a graph into
+text is straightforward in principle, but LLM context windows are finite and a
+hospital-scale graph produces far more text than any current model can read at
+once, at a cost in time and compute that would be impractical regardless. So
+something has to select, and selection has two failure modes: retrieve too little
+and the facts an answer depends on are missing; retrieve too much and the result
+is expensive to process, hard to read, and diluted by material that competes with
+the relevant part for the model's attention. Chapter~\ref{chapter:background}
+compares the families of strategies that navigate this trade-off; what matters
+here is that the trade-off exists and that no strategy escapes it.
+
+Three properties of the specific graph studied here sharpen the problem
+considerably. All three were measured during this project, and none of them holds
+in the benchmarks G-Retriever was evaluated on.
+
+% TODO: confirm with the STCS Data Center that reporting these aggregate counts
+% in a public thesis is acceptable. They are cohort-level statistics with no
+% patient-level information, but the confirmation should be on record.
+\paragraph{Scale.} The graph holds 21{,}537{,}305 nodes and 72{,}218{,}890 edges
+for 1{,}197 patients, roughly 18{,}000 nodes per patient. Selecting over the
+whole graph per question is therefore not merely expensive but structurally
+different from the published setting, where the candidate region was fixed in
+advance and small.
+
+\paragraph{Sparse and shared text.} Almost no node carries text of its own.
+Laboratory results, which with their associated samples and test records make up
+roughly 95\% of the graph, are described only through the terminology codes they
+reference, and 4{,}832{,}744 laboratory tests resolve to just 544 distinct LOINC
+descriptions. A similarity score computed over that text can take only 544
+distinct values across millions of nodes, so it can identify which
+\emph{analyte} a question is about but not which \emph{measurement}.
+
+\paragraph{Degenerate connectivity.} A handful of administrative nodes dominate
+the graph's structure: 168 provenance nodes have an average degree of 69{,}525,
+and six anatomical-site nodes absorb 3{,}454{,}881 edges. Any two nodes are two
+or three hops apart through such a node, which makes an unqualified
+connectivity requirement nearly vacuous.
+
+Finally, and independently of the graph, the relevance signal itself is only a
+proxy. Cosine similarity between a question and a node's text is not relevance,
+and terse clinical labels are not the open-domain prose most sentence encoders
+were trained on. A node can rank highly for the wrong reason, or poorly despite
+being exactly right, because it uses a clinically equivalent but differently
+worded term. A selection strategy has to remain useful under an imperfect signal,
+not only under a favourable graph.
+
+\section{Research Questions} \label{sec:research-objectives}
+
+The thesis addresses three questions.
+
+\begin{description}
+\item[RQ1] Does PCST-based subgraph selection retrieve answer entities more
+effectively than SnapQuery on the same clinical questions, measured as
+\emph{answer-node recall at a given subgraph size}: the fraction of entities
+constituting a correct answer that appear in the retrieved subgraph, reported
+against the size of that subgraph rather than as a single number?
+
+\item[RQ2] How much of any difference is attributable to the connectivity
+constraint itself, rather than to the underlying similarity scores? This is
+answered by internal ablations that hold the similarity signal fixed and vary
+only how connectivity is handled: similarity-only top-$k$ selection, and
+breadth-first expansion from seed nodes.
+
+\item[RQ3] Does augmenting the PCST prize function with \emph{intent} signals
+(recognising that a question concerns a treatment, a laboratory value, or a
+complication) and \emph{schema} signals (raising the prizes of nodes whose SPHN
+type matches that intent) improve the trade-off further?
+\end{description}
+
+The working hypothesis for RQ1 is that PCST-based selection achieves higher
+answer-node recall at a given subgraph size, and that the margin is largest on
+questions requiring several entities to be connected through the graph rather
+than a single node to be matched. The reasoning is asymmetric in an interesting
+way: SnapQuery returns exactly the rows its generated query names, so an entity
+it does not explicitly ask for cannot appear in its result, whereas the
+connectivity term in PCST admits bridge nodes and thereby gives indirectly
+related answers a chance to surface. RQ3 is pursued only if the work on RQ1 and
+RQ2 stays on schedule.
+
+\section{Scope and Delimitations} \label{sec:thesis-scope}
+
+The evaluation proceeds in two phases. Phase~1, the core of the thesis, measures
+retrieval quality alone: whether the retrieved subgraph contains the answer
+entities, and how large it is, independently of whether a downstream model would
+phrase a fluent answer from it. Phase~2 measures answer quality: an LLM generates
+a natural-language answer from each retrieved subgraph, which is then assessed
+for faithfulness and hallucination~\cite{huang2023hallucination}. Phase~2 belongs
+to this thesis rather than to future work.
+
+Query latency is deliberately excluded. It is a property of an implementation
+and a deployment rather than of a selection strategy, and including it would
+reward engineering effort instead of the retrieval behaviour under study.
+
+The graph is the Neo4j graph that SnapQuery itself queries, scoped to the STCS
+transplant cohort and structured according to the SPHN
+schema~\cite{sphnschema}. The schema is public and versioned; the instance data
+is governed clinical data that remains on University Hospital Basel and BioMedIT
+infrastructure throughout. Development therefore proceeds against the schema,
+against synthetic graphs reproducing its measured structure, and against the real
+data once access permits, with final validation on the real cohort.
+
+\section{Contributions} \label{sec:contributions}
+
+\begin{itemize}
+\item An implementation of PCST-based subgraph selection for an SPHN-structured
+clinical knowledge graph, verified to reproduce the published G-Retriever
+implementation exactly on shared inputs, so that any difference in behaviour on
+clinical data is attributable to the data rather than to the reimplementation.
+
+\item A \emph{graph preparation} procedure that makes an SPHN instance graph
+amenable to text-based retrieval at all: folding shared terminology nodes into
+the text of the nodes that reference them, pruning provenance hubs, and scoping
+selection to a patient or cohort. Each step is stated as a methodological choice
+with a measured justification, and each can be disabled for ablation.
+
+\item Three findings about how G-Retriever transfers to this setting, each
+established both analytically and empirically:
+  \begin{enumerate}
+  \item its edge-prize mechanism collapses when a graph has few, heavily shared
+  relation types, because the per-tier prize budget is divided among all
+  identically-scored edges; under the published default parameters this drives
+  the effective per-edge cost to a negligible value and the method returns
+  essentially the entire candidate region;
+  \item with text shared at high multiplicity, the top-$k$ node selection is
+  determined by tie-breaking rather than by similarity, so two implementations
+  of the same algorithm return different subgraphs for the same question;
+  \item resolving terminology codes to canonical descriptions, rather than
+  embedding the labels the graph happens to carry, is what makes the retrieval
+  signal usable, and it is also what makes results portable across the
+  multilingual terminologies an SPHN graph combines.
+  \end{enumerate}
+
+\item An evaluation protocol that compares a subgraph retriever against a
+production query-generating agent on a shared metric, despite the two exposing
+different artefacts, together with an explicit treatment of the questions this
+metric cannot score, so that they are reported rather than silently counted as
+failures.
+
+\item A human-validated gold set of approximately 50 questions with manually
+confirmed answer entities, used to establish correctness independently of
+SnapQuery's own output.
+
+\item An assessment of answer faithfulness and hallucination for answers
+generated from the retrieved subgraphs (Phase~2), and, as an optional extension,
+of the intent- and schema-aware prize function of RQ3.
+\end{itemize}
+
+\section{Thesis Structure} \label{sec:thesis-structure}
+
+Chapter~\ref{chapter:background} introduces the technical background and
+positions PCST-based selection among the alternatives. Chapter~3 gives the
+mathematical treatment of G-Retriever and PCST that
+Chapter~\ref{chapter:background} deliberately leaves out. Chapter~4 sets out the
+methodology: the graph preparation procedure, the strategies compared, the
+evaluation protocol and the question sets. Chapter~5 describes the
+implementation. Chapter~6 reports and discusses the Phase~1 and Phase~2 results,
+and Chapter~7 concludes.
