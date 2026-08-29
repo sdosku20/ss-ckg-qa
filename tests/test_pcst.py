@@ -504,8 +504,20 @@ def test_prize_stages_work_without_pcst_fast_installed():
 # Group 6: equivalence with the official implementation
 # ---------------------------------------------------------------------------
 
-torch = pytest.importorskip("torch", reason="equivalence test needs torch + torch_geometric")
-Data = pytest.importorskip("torch_geometric.data.data", reason="needs torch_geometric").Data
+# importorskip catches ImportError but not OSError, and torch fails with the
+# latter when a Windows Application Control policy blocks one of its DLLs. That
+# happened once mid-run and took down collection of the *entire* suite, not just
+# these twelve tests -- which looks exactly like "you broke everything" and is
+# not. Skip the group instead, so the other 180 tests still report.
+try:  # noqa: SIM105
+    import torch
+    from torch_geometric.data.data import Data
+except (ImportError, OSError) as exc:  # pragma: no cover - environment dependent
+    pytest.skip(
+        f"equivalence tests need torch + torch_geometric ({type(exc).__name__}: {exc})",
+        allow_module_level=True,
+    )
+
 from ikgqa.pcst.reference import retrieval_via_pcst as official  # noqa: E402
 
 

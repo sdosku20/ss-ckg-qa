@@ -1,6 +1,6 @@
 # Status and next steps
 
-_Last updated: 20 August 2026_
+_Last updated: 29 August 2026_
 
 Read this first when you come back to the project. It says where things stand,
 the exact commands to get running again, and the facts that took effort to
@@ -10,14 +10,15 @@ discover so you never have to work them out twice.
 
 ## 1. Where things stand
 
-_Week 6 of a 24-week plan (prep doc submitted 16 July 2026)._
+_Week 7 of a 24-week plan (prep doc submitted 16 July 2026). **8 working days to 10 September.**_
 
 **Done and validated on real clinical data.** PCST retrieval, verified
 byte-equivalent to the published G-Retriever; four baselines; the
 answer-node-recall metric; the recall-vs-size sweep harness; a Neo4j loader that
 runs against the live STCS graph; a measured-shape replica that reproduces one
 real patient exactly, so everything downstream can be developed offline; and the
-terminology cross-walk. 172 tests pass. Eleven measured findings in §4a.
+terminology cross-walk; and two-stage candidate generation. 191 tests pass.
+Twelve measured findings in §4a.
 
 **Not done, and the honest critical path: the SnapQuery baseline harness.** The
 thesis result is a comparison against SnapQuery, and not one real SnapQuery
@@ -51,7 +52,7 @@ cd "C:\Users\serxh\OneDrive\Documents\THESIS\Master Thesis Code"
 PCST\.venv\Scripts\python.exe -m pytest
 ```
 
-Expect **172 passed**. If that holds, nothing has rotted.
+Expect **191 passed**. If that holds, nothing has rotted.
 
 ```powershell
 PCST\.venv\Scripts\python.exe -m ikgqa.demo          # PCST, one stage at a time
@@ -174,7 +175,7 @@ Python package `ikgqa`, installed editable into `PCST/.venv`.
 | `ikgqa.graph` | `TextualGraph` — nodes, edges, embeddings, validated on construction |
 | `ikgqa.encoders` | `BagOfWordsEncoder` (offline, deterministic), `SentenceTransformerEncoder` (lazy) |
 | `ikgqa.pcst` | The PCST algorithm + a verbatim copy of upstream as a test oracle |
-| `ikgqa.retrieval` | `PCST`, `TopKTriples`, `TopKNodesPlusNeighbors`, `BFSExpansion`, `ShortestPaths` |
+| `ikgqa.retrieval` | `PCST`, `TopKTriples`, `TopKNodesPlusNeighbors`, `BFSExpansion`, `ShortestPaths`, plus `candidates` (`TwoStage`, `TopNSimilar`, `SeedExpansion`) |
 | `ikgqa.eval` | `metrics.py` (answer-node recall), `sweep.py` (recall-vs-size curve), `toy_report.py` |
 | `ikgqa.data` | `sphn` (Neo4j loader), `replica` (measured-shape synthetic patient), `terminology` (code cross-walk), `toy` |
 | `PyPI` | Reachable, and arbitrary HTTPS too (confirmed 20 Aug) |
@@ -182,7 +183,7 @@ Python package `ikgqa`, installed editable into `PCST/.venv`.
 Verified facts about it:
 
 - `reference.py` is **byte-identical** to upstream G-Retriever `main` (diffed 18 Aug 2026).
-- 172 tests pass, including PCST equivalence against that copy on curated *and* random graphs.
+- 191 tests pass, including PCST equivalence against that copy on curated *and* random graphs.
 - `numpy<2` is mandatory: under NumPy 2 the `pcst_fast` wheel returns correctly shaped
   garbage without raising. `check_pcst_fast_sanity()` catches it at runtime.
 - Aggregate questions ("how many patients…") are recorded as `NaN` with a reason,
@@ -380,6 +381,44 @@ embeddings describe. Both pinned by tests.
 
 ---
 
+**F12. Candidate generation is free at the sizes PCST operates in, and it depends on
+the terminology work.** `ikgqa.retrieval.candidates` adds two-stage retrieval: a
+generator narrows the graph, an inner retriever selects inside it, and every id is
+mapped back to the original index space. Measured on the full-size replica
+(29 Aug 2026):
+
+```powershell
+PCST\.venv\Scripts\python.exe experiments\candidate_generation.py
+```
+
+| Stage one | Nodes returned | Recall | Ceiling | ms/question |
+|---|---|---|---|---|
+| none (whole patient graph) | 11.0 | 0.1641 | 1.0000 | 78 |
+| seed expansion, cap=500 | 11.0 | 0.1641 | 0.6425 | 19 (4.2×) |
+| seed expansion, cap=2000 | 11.0 | 0.1641 | 0.7732 | 24 (3.3×) |
+| top-n similar, n=500 | **220.6** | 0.3819 | 0.6480 | 14 (5.8×) |
+
+Four things follow:
+
+- **Seed expansion is free.** Identical subgraph, identical recall, 3–4× faster. On
+  1,197 patients that is the difference between a sweep that finishes and one that
+  does not.
+- **Top-n similar does not control size.** Its induced subgraph is nearly edgeless —
+  the most similar nodes are not adjacent — so PCST is handed isolated fragments and
+  returns all of them: 220 nodes instead of 11. Its higher recall is a *larger*
+  subgraph, not a better one. Always read recall next to the node count.
+- **Ceiling is the number that stops this being self-deception.** Stage one discards
+  22–36% of answer nodes, so recall could never have exceeded ~0.65–0.78. It happens
+  not to bind at 11 nodes, but it would bind immediately at larger sizes, and without
+  reporting it a selection failure and a narrowing failure look identical.
+- **Every generator discarded every code-only diagnosis (ceiling 0.0000).** A node
+  with no matching text is neither similar to the question nor adjacent to anything
+  that is, so narrowing removes it first. **Terminology resolution (F11) is a
+  prerequisite for candidate generation, not an independent improvement.** That
+  ordering was not obvious before measuring it.
+
+---
+
 ## 4b. Thesis writing
 
 LaTeX lives in `thesis/`. Build with `thesis/Makefile`; check first with
@@ -419,7 +458,7 @@ there for ordering the work, not for promising a date.
 
 | # | Work | Est. | Why it matters |
 |---|---|---|---|
-| 1 | **Candidate generation** | 3 d | Named contribution. One patient is 15,810 nodes; PCST needs a narrowing step *before* it. Nothing else in Phase 1 is meaningful at full scale without it |
+| ~~1~~ | ~~Candidate generation~~ | done | F12. `TwoStage` + two generators, 19 tests, measured: 3-4x faster at identical recall and subgraph size |
 | 2 | **Multi-patient evaluation loop** | 2 d | Everything so far is one patient. Needs per-patient graph loading, caching, and a question set spanning patients |
 | 3 | **Figures** | 1 d | The recall-vs-size curve is the thesis's headline artefact and there is no plotting code at all yet (matplotlib is not even a dependency) |
 | 4 | **Gold-set format and tooling** | 1 d | The *format* is unblocked even though the questions are not. Build it so questions can be poured in the day they arrive |
@@ -442,8 +481,10 @@ there for ordering the work, not for promising a date.
 | 11 | **Phase 2: generation + faithfulness** | 4 d | Weeks 19–20 in the plan. Pulling it forward buys nothing |
 | 12 | **RQ3 intent/schema prizes** | 2 d | Optional extension. Hierarchy expansion already exists as its cheapest form (F11) |
 
-**Excluding 11 and 12: roughly 15 focused days.** That is not slack — it is the
-whole budget for three weeks, before writing a page.
+**Excluding 11 and 12: roughly 12 focused days remain** (candidate generation is
+done). There are **8 working days to 10 September**, so the arithmetic does not
+close: something has to give, and the choice is whether to retire the SnapQuery
+risk or to get the writing to ~30 pages. It cannot be both.
 
 ### The critical path is item 6, and it is not the biggest item
 

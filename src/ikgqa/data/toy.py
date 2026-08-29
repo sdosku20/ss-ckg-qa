@@ -98,6 +98,25 @@ class ToyKG:
             num_nodes=len(self.node_texts),
         )
 
+    @property
+    def textual(self) -> "TextualGraph":
+        """The same graph as a TextualGraph, for anything that needs the text.
+
+        SimpleGraph carries embeddings only, which is all the PCST core wants.
+        Retrievers that read node text -- KAPING -- and anything that induces a
+        subgraph need the DataFrames too, so the toy graphs must be able to
+        produce both or they cannot be used to test those paths.
+        """
+        from ikgqa.graph import TextualGraph
+
+        return TextualGraph(
+            nodes=self.nodes_df,
+            edges=self.edges_df,
+            node_emb=self.x,
+            edge_emb=self.edge_attr,
+            name=self.name,
+        )
+
     def q(self, question: str) -> np.ndarray:
         """Embed a question in the same space as the graph."""
         return self.encoder.encode_one(question)

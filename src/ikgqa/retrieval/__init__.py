@@ -18,11 +18,23 @@ Which family each belongs to, in the terms of thesis Section 2.3:
     ShortestPaths           path-based, connected but unbounded length
     PCST                    global objective, connectivity *and* size priced in
 
+Two-stage retrieval lives in ikgqa.retrieval.candidates: a graph of 15,810 nodes
+per patient is far larger than the per-question subgraphs G-Retriever was built
+for, so a narrowing step has to come first. TwoStage composes a generator with
+any of the above and maps ids back to the original graph.
+
 The functional forms (retrieve_topk_triples and friends) are exported too, for
 the playground and for anyone who prefers plain functions.
 """
 
 from ikgqa.retrieval.base import BaseRetriever, Retrieval, Retriever, assert_valid
+from ikgqa.retrieval.candidates import (
+    CandidateGenerator,
+    SeedExpansion,
+    TopNSimilar,
+    TwoStage,
+    induce,
+)
 from ikgqa.retrieval.paths import (
     BFSExpansion,
     ShortestPaths,
@@ -50,14 +62,19 @@ DEFAULT_RETRIEVERS = (
 __all__ = [
     "BFSExpansion",
     "BaseRetriever",
+    "CandidateGenerator",
     "DEFAULT_RETRIEVERS",
     "PCST",
     "Retrieval",
     "Retriever",
+    "SeedExpansion",
     "ShortestPaths",
     "TopKNodesPlusNeighbors",
+    "TopNSimilar",
+    "TwoStage",
     "TopKTriples",
     "assert_valid",
+    "induce",
     "retrieve_bfs_expansion",
     "retrieve_pcst",
     "retrieve_shortest_paths",
