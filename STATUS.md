@@ -30,8 +30,13 @@ arithmetic does not close and something has to be chosen.
 **Ahead of the plan on the retrieval core; not ahead overall.** The core landing
 in week 7 is genuinely early against a plan that puts Phase 2 in weeks 19–20. The
 codebase as a whole is not ahead: the multi-patient loop, the baseline harness and
-every figure are still missing, and the writing is at 12.4 of 44 planned pages
-with nothing measured after 20 August yet written up.
+every figure are still missing.
+
+**Writing: 27.5 of 44 pages**, Chapters 1–6 drafted and wired into `Thesis.tex`,
+every finding through F12 written up. Chapters 4 and 5 are thin against budget
+and Chapter 7 is unwritten. Nothing has been through a LaTeX compiler — there is
+none on this machine — so build it on the server or in Overleaf before sending it
+anywhere.
 
 ---
 
