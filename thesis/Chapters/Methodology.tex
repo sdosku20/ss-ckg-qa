@@ -1,0 +1,182 @@
+% !TEX root = ../Thesis.tex
+% ============================================================
+\chapter{Methodology} \label{chapter:methodology}
+% ============================================================
+
+% EDITORIAL NOTE. Every choice in this chapter is stated as a decision with a
+% measured justification and an off switch, because a pipeline whose steps cannot
+% be disabled cannot be ablated, and an unablatable step cannot be reported as a
+% contribution. Where a decision is still open it is marked as such rather than
+% quietly settled.
+
+This chapter sets out how the comparison is made: what is done to the graph
+before any retrieval happens, how retrieval is staged, what is measured, and on
+which questions. The guiding constraint is that each step must be switchable, so
+that Chapter~\ref{chapter:results} can attribute an effect to it rather than to
+the pipeline as a whole.
+
+\section{Graph Preparation} \label{sec:methodology-preparation}
+
+An SPHN instance graph is not directly amenable to text-based retrieval, for
+reasons established in Section~\ref{subsec:sphn-schema}: descriptions sit on
+shared code nodes rather than on the events a question is about, and provenance
+nodes of enormous degree make connectivity vacuous. Four transformations address
+this. Each is applied to a derived text layer; none modifies the database, which
+is read-only by design.
+
+\paragraph{Patient scoping.} Retrieval is performed within one patient's
+subgraph. This is not merely an optimisation: a question about a patient has no
+answer outside that patient, and scoping removes $1{,}196/1{,}197$ of the graph
+before anything else runs. Cohort-level questions are out of scope for the metric
+for a separate reason discussed in Section~\ref{sec:methodology-metric}.
+
+\paragraph{Folding shared terminology into text.} Nodes whose only role is to
+carry a value or a code -- \texttt{Code}, \texttt{Unit}, \texttt{Quantity},
+\texttt{BodySite}, \texttt{ReferenceRange} -- are removed as nodes and their text
+composed into the description of the event that references them. This is what
+turns a four-node laboratory construct plus its satellites into one node carrying
+a sentence. Without it, the node a question is about carries a timestamp and
+nothing else.
+
+\paragraph{Pruning provenance.} \texttt{SourceSystem},
+\texttt{HealthcarePrimaryInformationSystem}, \texttt{DataProvider},
+\texttt{DataRelease}, \texttt{TimePattern}, \texttt{CareHandling} and
+\texttt{Location} are removed. They are correct, schema-mandated, and place
+almost every pair of nodes within three hops of each other
+(Table~\ref{tab:measured-graph}). The justification is not size but
+interpretability of connectivity: a path through a provenance hub carries no
+clinical meaning.
+
+\paragraph{Two text fields per node.} Each node is given an \emph{embedding text}
+and a \emph{display text}. The embedding text carries the semantic core -- what
+kind of measurement, which analyte -- and deliberately excludes the measured
+value and the timestamp, so that repeated measurements of one analyte share a
+single embedding. The display text carries everything, because an LLM answering
+from the subgraph needs the value. The split is what makes embedding a
+15{,}810-node patient cost 614 encoder calls rather than 15{,}810, and it is also
+the reason a text-scoring baseline must be given the embedding text and not the
+display text if the comparison is to be fair.
+
+\paragraph{Terminology resolution.} Codes are resolved against published
+catalogues to supply descriptions the graph lacks, in five tiers -- exact match,
+a different version of the same classification, the parent concept, the graph's
+own label, and nothing -- with the count of nodes answered by each tier reported
+alongside any result that depends on it. The design is a cross-walk rather than a
+translation because a code is language-independent, which makes the operation
+deterministic and auditable, and because it can fill codes that have no label at
+all. Section~\ref{sec:results-terminology} reports what it recovers.
+
+Each of the five is independently switchable, and the un-prepared graph is the
+baseline every gain is measured against.
+
+\section{Two-Stage Retrieval} \label{sec:methodology-candidates}
+
+G-Retriever assumes one modest graph per question. A prepared patient is
+$15{,}810$ nodes (Table~\ref{tab:patient-zero}), so a narrowing stage is
+introduced before selection: a generator proposes a region, and the selection
+strategy under test operates inside it. Two generators are compared, top-$n$ by
+similarity and expansion from similarity-ranked seeds under a hard cap, together
+with the control of no narrowing at all.
+
+Narrowing can discard an answer before any retriever sees it, and that failure is
+indistinguishable from a bad selection if only the final subgraph is scored. Every
+two-stage result is therefore reported with a \emph{ceiling}: the recall
+attainable given what stage one kept. Recall far below its ceiling indicates a
+selection problem; a low ceiling indicates a narrowing problem.
+
+\section{Strategies Compared} \label{sec:methodology-strategies}
+
+Five strategies are evaluated, one per family of
+Section~\ref{sec:subgraph-selection-approaches}: PCST-based selection; top-$k$
+triples in the manner of KAPING~\cite{baek2023kaping}; top-$k$ nodes with their
+neighbours; breadth-first expansion from seeds; and shortest paths between
+similarity-ranked nodes. All five consume the same graph, the same encoder and
+the same question embedding, and differ only in how they choose. Any baseline
+that scores text rather than embeddings is given the embedding text, since
+scoring it on display text while scoring PCST on embedding text would understate
+it, and understating a baseline is as much an error as overstating the method
+under test.
+
+\section{The Metric} \label{sec:methodology-metric}
+
+The primary measurement is \emph{answer-node recall at a given subgraph size}:
+the fraction of the entities constituting a correct answer that appear in the
+retrieved subgraph, reported against the measured size of that subgraph.
+
+For a question with gold answer nodes $A$ and a retrieved node set $V_S$,
+%
+\begin{equation}
+\mathrm{recall} = \frac{\lvert A \cap V_S \rvert}{\lvert A \rvert} .
+\label{eq:recall}
+\end{equation}
+%
+Recall is undefined when $A$ is empty and is recorded as such rather than as
+zero. This matters more than it appears: a question such as ``how many patients
+received drug X'' has no answer node anywhere in the graph, and scoring it zero
+would report a well-behaved retriever as failing. Such questions are recorded
+with a reason and excluded from the mean, and the number of questions actually
+scored is reported beside every average.
+
+Alongside recall, each run records the retrieved node count, edge count, prompt
+character count, the fraction of the graph retrieved, and whether the result is
+connected.
+
+\section{Comparing Dials That Are Not the Same Quantity} \label{sec:methodology-comparability}
+
+PCST's size parameter is a cost per edge; the baselines' is a count $k$ or a hop
+number $h$. These are not commensurable, and plotting recall against ``the
+parameter'' would compare a cost with a count. Every comparison in this thesis is
+therefore made against a \emph{measured} size -- node count, or prompt characters
+-- with each strategy swept across its own parameter range and the resulting
+points placed on a shared axis.
+
+Two consequences must be stated rather than assumed. First, a strategy that
+returns more nodes will usually recall more, so a recall figure is meaningless
+without the size beside it; Section~\ref{sec:results-candidates} contains a case
+where ignoring this would have manufactured an improvement. Second, the ranges
+must overlap in achieved size, or the curves never meet and no comparison at
+equal size is possible.
+
+\section{Question Sets} \label{sec:methodology-questions}
+
+Three sets are used, with decreasing availability and increasing authority.
+
+\paragraph{Planted questions.} Generated against a synthetic graph with known
+answer nodes. They test the harness and structural mechanisms and make no claim
+about clinical retrieval. They are the only set available without access to real
+usage, and every result in Chapter~\ref{chapter:results} rests on them.
+
+\paragraph{Real user questions.} Questions clinicians and data managers have
+actually put to SnapQuery. Whether these are retained, in what form, and who can
+export them is an open question with the STCS Data Center at the time of writing.
+Their availability determines whether RQ1 can be answered on real usage or only
+on a curated set.
+
+\paragraph{A validated gold set.} Approximately fifty questions whose answer
+entities have been confirmed by hand, so that correctness is established
+independently of SnapQuery's own output. Using a production system's answers as
+ground truth for a comparison against that same system would be circular; the
+gold set is what breaks the circle, which is why it is treated as a core artefact
+rather than a validation afterthought.
+
+\section{SnapQuery as a Comparator} \label{sec:methodology-snapquery}
+
+SnapQuery returns rows, not a subgraph (Section~\ref{subsec:snapquery-background}).
+To place it on the same axis, the entities its result rows touch are treated as
+its induced subgraph. Two limitations follow and are stated here rather than
+discovered later. It exposes no size parameter, so it contributes a single point
+rather than a curve, and comparisons must be read as ``at the size SnapQuery
+happens to produce''. And the mapping from rows to entities is an interpretation
+imposed by this thesis, not something SnapQuery asserts; a row that aggregates
+over entities may touch many or none.
+
+\section{Data Governance} \label{sec:methodology-governance}
+
+The instance data is governed clinical data and remains on University Hospital
+Basel and BioMedIT infrastructure throughout. All database access is read-only.
+Only schema names, property names, counts and aggregate statistics appear in this
+thesis; no property value, identifier, laboratory result or date does. Patients
+are addressed by position in a query result rather than by any identifier, so no
+pseudo-identifier leaves the server. Development proceeds against the public
+schema, against synthetic graphs reproducing its measured structure, and against
+the real data only for the measurements reported as such.

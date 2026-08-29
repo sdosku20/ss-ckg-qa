@@ -1,0 +1,269 @@
+% !TEX root = ../Thesis.tex
+% ============================================================
+\chapter{G-Retriever and Prize-Collecting Steiner Trees} \label{chapter:pcst}
+% ============================================================
+
+% EDITORIAL NOTE. Chapter 2 deliberately describes PCST selection without algebra,
+% and promises the detail here exactly once. This chapter is that promise: the
+% objective, the prize and cost definitions, the transformation that lets edges
+% carry prizes, the solver, and -- Section 3.7 -- what those definitions predict
+% on a graph with the properties measured in Section 1.2. Those predictions are
+% what Chapter 6 tests, so the analysis here is not decoration: it is the
+% hypothesis.
+
+Chapter~\ref{chapter:background} placed PCST-based selection among the
+alternatives and deferred the mathematics. This chapter supplies it. The purpose
+is not completeness for its own sake but a specific one: the behaviour this
+thesis observes on clinical data follows from the prize and cost definitions
+rather than from anything clinical, and that can only be shown by writing them
+down. Section~\ref{sec:pcst-consequences} derives two predictions from the
+definitions alone, and Chapter~6 reports what happened when they were tested.
+
+\section{Subgraph Selection as an Optimisation Problem} \label{sec:selection-formal}
+
+Let $G = (V, E)$ be a graph in which every node $v \in V$ and every edge
+$e \in E$ carries a text description. A sentence encoder~\cite{reimers2019sentencebert}
+maps each description to a vector, giving $\mathbf{x}_v$ for nodes,
+$\mathbf{x}_e$ for edges, and $\mathbf{q}$ for the question. Relevance is
+measured by cosine similarity,
+%
+\begin{equation}
+\operatorname{sim}(\mathbf{a}, \mathbf{b})
+  = \frac{\mathbf{a}^{\top}\mathbf{b}}{\lVert \mathbf{a}\rVert \, \lVert \mathbf{b}\rVert},
+\label{eq:cosine}
+\end{equation}
+%
+which is the only place the question enters the computation. Everything after
+this point operates on the resulting scores, a fact worth holding onto: no stage
+of the algorithm can recover information that Equation~\ref{eq:cosine} failed to
+capture, and Section~\ref{sec:pcst-consequences} returns to what that costs when
+many nodes share identical text.
+
+A selection strategy returns a subgraph $S = (V_S, E_S)$ with $V_S \subseteq V$
+and $E_S \subseteq E$. The two requirements in tension are that $S$ should
+contain the entities an answer needs, and that $S$ should be small. Stating them
+as one objective, rather than as a filter followed by a repair step, is what
+distinguishes the PCST formulation from the families surveyed in
+Section~\ref{sec:subgraph-selection-approaches}.
+
+\section{The Prize-Collecting Steiner Tree} \label{sec:pcst-definition}
+
+The Steiner tree problem asks for a minimum-cost tree spanning a set of required
+terminals. Its prize-collecting variant~\cite{bienstock1993pcst} relaxes the
+requirement: terminals may be left out, at the price of forfeiting a prize
+attached to them. Formally, given prizes $p: V \to \mathbb{R}_{\geq 0}$ and costs
+$c: E \to \mathbb{R}_{\geq 0}$, the problem is to find a connected subgraph $S$
+maximising
+%
+\begin{equation}
+F(S) \;=\; \sum_{v \in V_S} p(v) \;-\; \sum_{e \in E_S} c(e).
+\label{eq:pcst-objective}
+\end{equation}
+%
+Equivalently, and in the form the classical literature states it, $S$ minimises
+the forfeited prize plus the cost paid,
+$\sum_{v \notin V_S} p(v) + \sum_{e \in E_S} c(e)$; the two differ by the
+constant $\sum_{v \in V} p(v)$.
+
+Three features of Equation~\ref{eq:pcst-objective} matter for retrieval. First,
+connectivity is a constraint on the feasible set, not a term in the objective, so
+it cannot be traded away by a sufficiently attractive node. Second, the trade-off
+between relevance and size is priced by a single quantity, the cost per edge, and
+the size of the result is therefore controlled by a continuous parameter rather
+than by an integer count. Third, and least obvious, the formulation admits nodes
+of low prize: a node with $p(v) = 0$ is worth including whenever it lies on a path
+whose endpoints jointly forfeit more than the connecting edges cost. Such a node
+is invisible to any method that scores nodes independently, and it is the
+mechanism by which a bridging entity can reach the prompt at all.
+
+\section{G-Retriever's Prize and Cost Assignment} \label{sec:gretriever-prizes}
+
+Equation~\ref{eq:pcst-objective} says nothing about where prizes come from.
+G-Retriever~\cite{he2024gretriever} supplies them by rank rather than by score.
+
+\paragraph{Node prizes.} Let $\pi(v)$ be the rank of node $v$ when nodes are
+sorted by $\operatorname{sim}(\mathbf{q}, \mathbf{x}_v)$ in descending order,
+with $\pi(v) = 1$ for the most similar. For a parameter $k$ (\texttt{topk}),
+%
+\begin{equation}
+p(v) \;=\;
+\begin{cases}
+k - \pi(v) + 1, & \pi(v) \leq k, \\
+0, & \text{otherwise.}
+\end{cases}
+\label{eq:node-prizes}
+\end{equation}
+%
+So the best node receives $k$, the next $k-1$, down to $1$ for the $k$-th, and
+every other node receives nothing. Using rank rather than the similarity value
+makes the prize scale independent of how tightly the similarities are clustered,
+which is a reasonable defence against an encoder whose scores occupy a narrow
+band. It also discards magnitude entirely: the gap between the best and second
+best node is always exactly one prize unit, whether the encoder considered them
+near-identical or wildly different.
+
+\paragraph{Edge prizes.} Edges are ranked the same way, by
+$\operatorname{sim}(\mathbf{q}, \mathbf{x}_e)$, with a parameter $k_e$
+(\texttt{topk\_e}) playing the role of $k$. The difference is what happens to
+ties. Let $\tau$ index the distinct similarity values among the top $k_e$, let
+$b(\tau)$ be the prize budget assigned to tier $\tau$ by the same descending
+rule, and let $n_\tau$ be the number of edges whose similarity equals that
+value. Every edge in tier $\tau$ receives
+%
+\begin{equation}
+p(e) \;=\; \frac{b(\tau)}{n_\tau}.
+\label{eq:edge-prizes}
+\end{equation}
+%
+Dividing the tier's budget among tied edges is a sensible way to stop a single
+relation type from dominating the objective simply because it is common. Its
+consequences on a graph where relation types \emph{are} overwhelmingly common are
+the subject of Section~\ref{sec:pcst-consequences}.
+
+\paragraph{Edge cost.} Every edge is charged the same constant $c_e$
+(\texttt{cost\_e}), so
+%
+\begin{equation}
+\sum_{e \in E_S} c(e) \;=\; c_e \, \lvert E_S \rvert ,
+\label{eq:edge-cost}
+\end{equation}
+%
+and the cost term is proportional to the number of edges retrieved. This is the
+size dial: raising $c_e$ makes each connection more expensive and shrinks the
+result.
+
+\section{Making Edges Carry Prizes} \label{sec:virtual-nodes}
+
+Equation~\ref{eq:pcst-objective} places prizes on nodes and costs on edges, but
+Equation~\ref{eq:edge-prizes} places prizes on edges as well. Solvers for the
+prize-collecting Steiner tree do not accept that input, so G-Retriever removes
+the difficulty by transformation rather than by changing the solver.
+
+Consider an edge $e = (u, w)$ with prize $p(e)$ and cost $c_e$. Two cases arise.
+
+If $p(e) \leq c_e$, the prize is absorbed into the cost. The edge is kept as a
+single edge with adjusted cost
+%
+\begin{equation}
+c'(e) \;=\; c_e - p(e) \;\geq\; 0 ,
+\label{eq:absorbed-cost}
+\end{equation}
+%
+which is exact: selecting the edge gains $p(e)$ and pays $c_e$, a net payment of
+$c_e - p(e)$, and the objective is unchanged by writing it this way.
+
+If $p(e) > c_e$, absorbing the prize would require a negative cost, which the
+solver cannot represent. Instead a \emph{virtual node} $\nu_e$ is introduced,
+carrying prize $p(e) - c_e$, and the edge is replaced by two edges
+$(u, \nu_e)$ and $(\nu_e, w)$, each of cost $c_e / 2$. Selecting both new edges
+costs $c_e$ in total and collects $p(e) - c_e$, giving a net gain of
+$p(e) - c_e$, which again matches the original. The transformation is therefore
+objective-preserving, and it costs one additional node and one additional edge
+per high-prize edge.
+
+The price of the construction is paid at decoding time. The solver returns a set
+of vertices in the transformed graph, some real and some virtual, and the virtual
+ones must be mapped back to the edges they stand for. The final edge set is the
+union of the real edges the solver chose and the edges recovered from selected
+virtual nodes. That union is assembled by concatenation and is not re-sorted,
+which is harmless for a set-based metric and misleading for anything comparing
+edge sequences positionally; this thesis normalises the ordering at the interface
+rather than in the algorithm, so that the implementation stays faithful to the
+published one (Section~\ref{sec:implementation-fidelity}).
+
+\section{Keeping Costs Below the Largest Prize} \label{sec:cost-adjustment}
+
+One further adjustment sits between the parameters and the solver. If the
+per-edge cost exceeds every edge prize, the transformation of
+Section~\ref{sec:virtual-nodes} never takes its second branch, and the edge
+prizes cease to influence the solution at all. To avoid that degenerate regime,
+the implementation caps the cost at
+%
+\begin{equation}
+c_e \;\leftarrow\; \min\!\left\{\, c_e, \;\; \left(\max_{e \in E} p(e)\right)\left(1 - \frac{\gamma}{2}\right) \right\},
+\qquad \gamma = 0.01 ,
+\label{eq:cost-adjustment}
+\end{equation}
+%
+so that the cost is held just below the largest edge prize in the graph.
+
+Equation~\ref{eq:cost-adjustment} is easy to read as a safety rail and hard to
+notice as a coupling. It ties the size dial to the edge prizes: whatever the user
+requests, the effective cost can never exceed $\max_e p(e)$. Two consequences
+follow immediately, and both are tested in Chapter~6. Raising $c_e$ above that
+maximum has no effect whatsoever, so the dial saturates from above. And if
+$\max_e p(e)$ is itself very small, the effective cost is dragged down with it,
+so the dial collapses regardless of what value was requested.
+
+\section{Solving and Decoding} \label{sec:pcst-solver}
+
+The prize-collecting Steiner tree problem is NP-hard, and G-Retriever uses the
+primal-dual approximation of Goemans and Williamson in the near-linear-time
+formulation of Hegde et al.~\cite{hegde2015nearlylinear}, which is what the
+\texttt{pcst\_fast} package implements. The solver is invoked unrooted, asked for
+a single connected component, and run with Goemans-Williamson pruning. Unrooted
+is the right choice here because no node is distinguished a priori: in a rooted
+formulation the tree must contain a designated node, which would amount to
+assuming the answer's location.
+
+Decoding proceeds in three steps: partition the returned vertices into real and
+virtual, map virtual vertices back to their edges, and take the union of that set
+with the real edges the solver returned. The resulting node and edge sets index
+the original graph, and the retained rows of the node and edge tables are
+serialised into the text that reaches the language model.
+
+\section{What the Definitions Predict on a Clinical Graph} \label{sec:pcst-consequences}
+
+The definitions above were designed for graphs with many relation types used a
+few times each and with text that distinguishes one node from another. The graph
+measured in Section~\ref{sec:problem-statement} has neither property. Three
+predictions follow from the algebra alone, before any experiment.
+
+\paragraph{Prediction 1: the edge-prize mechanism dilutes to nothing.} Combining
+Equations~\ref{eq:edge-prizes} and~\ref{eq:cost-adjustment} gives the effective
+cost as a function of the largest tier. Since text is shared across every use of
+a relation type, all $n_\tau$ edges of a type receive identical similarity and
+therefore fall in one tier. In the measured graph the relation \texttt{hasCode}
+is used $4{,}883{,}809$ times, so with a top tier budget of $b \le k_e$ the
+per-edge prize is at most
+%
+\begin{equation}
+p(e) \;=\; \frac{b}{n_\tau} \;\leq\; \frac{k_e}{4{,}883{,}809} \;\approx\; 10^{-6} \cdot k_e .
+\label{eq:dilution}
+\end{equation}
+%
+Equation~\ref{eq:cost-adjustment} then forces $c_e \lesssim 10^{-6} k_e$
+regardless of the value supplied. Every edge becomes almost free, the cost term
+in Equation~\ref{eq:pcst-objective} becomes negligible beside the prize term, and
+the optimiser has no reason to exclude anything reachable. The prediction is that
+the method returns essentially its entire input.
+
+\paragraph{Prediction 2: rank prizes cannot separate identical text.}
+Equation~\ref{eq:node-prizes} depends on $\pi(v)$, a strict ordering. When many
+nodes share one description their similarities are exactly equal, so $\pi$ is
+determined by whatever order the sorting routine happens to produce among ties.
+In the measured cohort $4{,}832{,}744$ laboratory tests resolve to $544$ distinct
+descriptions, and one patient's $15{,}810$ nodes carry $614$ distinct texts --
+about $26$ nodes per text. The prediction is that similarity identifies the
+\emph{kind} of entity a question concerns but not \emph{which} instance, and that
+two correct implementations of the same algorithm can return different subgraphs
+for the same question.
+
+\paragraph{Prediction 3: connectivity is cheap where hubs exist.} The value of
+the connectivity constraint depends on paths being expensive. When a small set of
+nodes has very high degree -- $168$ provenance nodes of average degree
+$69{,}525$, six anatomical-site nodes carrying $3{,}454{,}881$ edges -- almost
+any pair of nodes is joined by a path of length two or three through one of them.
+The constraint is then satisfiable at negligible cost, and Steiner nodes stop
+being informative. The prediction is that connectivity contributes little until
+such nodes are excluded, and that excluding them changes what the subgraph
+contains rather than how large it is.
+
+\medskip
+
+None of the three is a defect in G-Retriever, which was designed for and
+validated on a different kind of graph. They are the price of the transfer, and
+stating them as consequences of Equations~\ref{eq:node-prizes}
+to~\ref{eq:cost-adjustment} rather than as observations is what makes them
+testable. Chapter~4 turns each into a methodological choice that can be switched
+off, and Chapter~6 reports the measurements.

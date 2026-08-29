@@ -1,0 +1,149 @@
+% !TEX root = ../Thesis.tex
+% ============================================================
+\chapter{Implementation} \label{chapter:implementation}
+% ============================================================
+
+% EDITORIAL NOTE. This chapter exists to make two claims checkable: that the PCST
+% implementation used here behaves exactly like the published one, and that every
+% number in Chapter 6 can be regenerated. Anything that does not serve one of
+% those does not belong here.
+
+The software is a Python package, \texttt{ikgqa}, organised so that each concern
+in Chapter~\ref{chapter:methodology} lives in one place and can be exercised on
+its own. This chapter describes the parts whose correctness the results depend
+on, and how each is established.
+
+\section{Structure} \label{sec:implementation-structure}
+
+\begin{table}[t]
+\centering
+\caption{Modules and their responsibilities.}
+\label{tab:modules}
+\begin{tabular}{ll}
+\toprule
+Module & Responsibility \\
+\midrule
+\texttt{ikgqa.graph} & a graph with text and embeddings, validated on construction \\
+\texttt{ikgqa.encoders} & bag-of-words and sentence-transformer encoders \\
+\texttt{ikgqa.pcst} & the PCST algorithm and a verbatim copy of the published one \\
+\texttt{ikgqa.retrieval} & the five strategies, plus two-stage candidate generation \\
+\texttt{ikgqa.eval} & the metric, the parameter sweep, and curve extraction \\
+\texttt{ikgqa.data} & the Neo4j loader, terminology resolution, the replica \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two design decisions in Table~\ref{tab:modules} are load-bearing rather than
+stylistic.
+
+The graph type validates its inputs when constructed: one embedding row per node,
+one per edge, matching dimensions, and edge endpoints within range. The reason is
+that none of these mismatches crashes. A graph with the wrong number of embedding
+rows produces a plausible but wrong subgraph, and a research bug of that kind can
+survive for months. Validating once converts it into an error message.
+
+Every retrieval strategy implements one interface -- given a graph and an embedded
+question, return node and edge identifiers -- and nothing else. The strategies do
+not embed text, do not score themselves, and do not call a model. That narrowness
+is what allows the evaluation harness to treat them as interchangeable, which is
+the premise of the entire comparison.
+
+\section{Fidelity to the Published Implementation} \label{sec:implementation-fidelity}
+
+Chapter~\ref{chapter:results} attributes behaviour to G-Retriever's design. That
+attribution is only legitimate if the implementation used here is G-Retriever's,
+so fidelity is established rather than asserted.
+
+A verbatim copy of the published retrieval routine is kept in the package,
+confirmed byte-identical to the upstream source, and is never edited. It serves
+as a test oracle: the instrumented implementation used throughout this thesis is
+required to return the same node set, the same edge set and the same serialised
+description as the copy, on curated graphs chosen to exercise each branch and on
+randomly generated graphs. Any divergence is a test failure rather than a
+judgement call.
+
+Three deviations from upstream exist, and all three are deliberate, localised and
+documented at the point of change.
+
+\paragraph{Edge identifier ordering.} Decoding concatenates the solver's real
+edges with the edges recovered from virtual nodes and never re-sorts, so the
+returned sequence is in solver order. This is harmless for a set-based metric and
+silently misleading for anything comparing sequences positionally. The ordering is
+normalised in the interface layer, leaving the algorithm byte-faithful.
+
+\paragraph{Tie-breaking.} Selecting the top $k$ nodes requires a total order, and
+where similarities are exactly equal the published implementation inherits the
+order of its tensor library's selection routine. Because ties are the normal case
+on this graph rather than an edge case, the tie-breaking rule is made an explicit
+parameter: one setting reproduces the published behaviour exactly, another is
+deterministic without that dependency. Every experiment records which was used.
+
+\paragraph{A pinned numerical dependency.} The PCST solver package is compiled
+against the NumPy 1.x binary interface. Under NumPy 2 it imports without error and
+returns arrays of the correct shape filled with meaningless values. The dependency
+is pinned, and a runtime check verifies the solver against a known-answer instance
+before any experiment, because a silent numerical failure is the one class of bug
+that testing after the fact cannot catch.
+
+\section{The Loader} \label{sec:implementation-loader}
+
+The loader turns one patient into the package's graph type using read-only
+Cypher. Folding of shared terminology nodes is performed in the query rather than
+in Python, so that only flat rows cross the network and no unnecessary node is
+ever materialised. Patients are addressed by position in an ordered result, which
+keeps pseudo-identifiers on the server.
+
+Fetching and assembly are separate functions. Assembly is pure -- rows in, graph
+out -- so it is unit tested against fixture rows with no database, while the
+Cypher itself is validated by running it. This separation is what allowed the
+assembly logic to be developed and tested before database access was available,
+and it is what lets the replica of Section~\ref{sec:implementation-replica} reuse
+the real assembly path.
+
+Shared clinical entities are deduplicated during assembly: repeated measurements
+of one analyte reference a single analyte node, and repeated administrations of
+one drug a single drug node. The resulting graph is deliberately not a star
+around the patient, because a star would make connectivity vacuous and leave the
+selection problem with nothing to decide.
+
+\section{The Replica} \label{sec:implementation-replica}
+
+Access to the clinical graph is intermittent, and every component downstream of
+the loader needs a graph to run against. The replica generates a synthetic
+patient whose structure matches a measured one exactly.
+
+Fidelity is achieved by construction rather than by imitation: the generator
+emits rows in the shape the Cypher returns and passes them to the same assembly
+function the loader uses. The structure is therefore identical by definition, and
+the assembly code is exercised by every offline experiment rather than only when
+the database is reachable. Achieved counts are printed against measured targets
+on every run, so the one quantity that does not match exactly -- the number of
+distinct texts, eleven per cent high -- is visible rather than buried.
+
+The limits of the replica are stated in Section~\ref{sec:results-scope} and
+repeated in the module itself, because a synthetic artefact that is faithful in
+one respect invites being trusted in others.
+
+\section{Testing} \label{sec:implementation-testing}
+
+The suite covers the algorithm's equivalence to the published implementation, the
+metric's behaviour on undefined cases, the loader's assembly against fixtures,
+the terminology tiers, and the two-stage index mapping.
+
+Two areas receive disproportionate attention because their failures are silent.
+The first is the retrieval contract -- identifiers sorted, unique, in range, and
+the node set closed under the returned edges -- asserted after every strategy in
+every test, which is how the edge-ordering deviation above was found. The second
+is the translation of identifiers between a narrowed subgraph and the original
+graph: a result returned in the wrong index space consists of plausible
+identifiers, computes a plausible recall, and is entirely wrong. It is tested
+directly, with a generator and an inner retriever chosen so the two index spaces
+cannot coincide by accident, rather than only through end-to-end recall.
+
+\section{Reproducibility} \label{sec:implementation-reproducibility}
+
+Every experiment is a script that writes tidy result files, and every figure and
+table in Chapter~\ref{chapter:results} names the script that produced it.
+Randomness is seeded, tie-breaking is an explicit parameter, and the offline
+encoder is deterministic given its vocabulary, so a rerun reproduces a run.
+Credentials are read from the environment and never appear in code or in results.

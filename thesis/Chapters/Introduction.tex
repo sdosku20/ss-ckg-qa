@@ -73,18 +73,22 @@ in the benchmarks G-Retriever was evaluated on.
 % in a public thesis is acceptable. They are cohort-level statistics with no
 % patient-level information, but the confirmation should be on record.
 \paragraph{Scale.} The graph holds 21{,}537{,}305 nodes and 72{,}218{,}890 edges
-for 1{,}197 patients, roughly 18{,}000 nodes per patient. Selecting over the
-whole graph per question is therefore not merely expensive but structurally
-different from the published setting, where the candidate region was fixed in
-advance and small.
+for 1{,}197 patients, roughly 18{,}000 nodes per patient. Even after the graph
+preparation described in Chapter~\ref{chapter:methodology}, a single patient
+comes to 15{,}810 nodes and 45{,}562 edges -- about eleven times the average
+WebQSP sample, for one patient out of 1{,}197. Selecting over the whole graph per
+question is therefore not merely expensive but structurally different from the
+published setting, where the candidate region was fixed in advance and small.
 
 \paragraph{Sparse and shared text.} Almost no node carries text of its own.
-Laboratory results, which with their associated samples and test records make up
-roughly 95\% of the graph, are described only through the terminology codes they
-reference, and 4{,}832{,}744 laboratory tests resolve to just 544 distinct LOINC
-descriptions. A similarity score computed over that text can take only 544
-distinct values across millions of nodes, so it can identify which
-\emph{analyte} a question is about but not which \emph{measurement}.
+Laboratory results account for 20{,}523{,}891 of the graph's nodes -- 95.3\% --
+because the schema represents one result as four separate event nodes, and they
+are described only through the terminology codes they reference: 4{,}832{,}744
+laboratory tests resolve to just 544 distinct LOINC descriptions. The effect
+survives preparation. One patient's 15{,}810 prepared nodes carry 614 distinct
+descriptions, about 26 nodes per description, so a similarity score can sort that
+patient's graph into at most 614 classes. It can identify which \emph{analyte} a
+question is about but not which \emph{measurement}.
 
 \paragraph{Degenerate connectivity.} A handful of administrative nodes dominate
 the graph's structure: 168 provenance nodes have an average degree of 69{,}525,
@@ -170,21 +174,35 @@ selection to a patient or cohort. Each step is stated as a methodological choice
 with a measured justification, and each can be disabled for ablation.
 
 \item Three findings about how G-Retriever transfers to this setting, each
-established both analytically and empirically:
+derived from its prize and cost definitions in
+Chapter~\ref{chapter:pcst} and then measured in
+Chapter~\ref{chapter:results}:
   \begin{enumerate}
   \item its edge-prize mechanism collapses when a graph has few, heavily shared
   relation types, because the per-tier prize budget is divided among all
   identically-scored edges; under the published default parameters this drives
-  the effective per-edge cost to a negligible value and the method returns
-  essentially the entire candidate region;
+  the effective per-edge cost to a negligible value, and the method returned the
+  entire graph it was given;
   \item with text shared at high multiplicity, the top-$k$ node selection is
   determined by tie-breaking rather than by similarity, so two implementations
   of the same algorithm return different subgraphs for the same question;
-  \item resolving terminology codes to canonical descriptions, rather than
-  embedding the labels the graph happens to carry, is what makes the retrieval
-  signal usable, and it is also what makes results portable across the
-  multilingual terminologies an SPHN graph combines.
+  \item at matched subgraph size the connectivity constraint contributed
+  nothing: every strategy tested, connected or not, recalled the same amount,
+  because on this graph the similarity signal rather than the structural
+  strategy decides what is retrieved.
   \end{enumerate}
+
+\item A terminology cross-walk that resolves codes to canonical descriptions in
+five reported tiers, rather than embedding whatever label the graph happens to
+carry. It moves diagnoses that no wording could retrieve from zero recall to
+0.80, identically for every retrieval strategy -- which places it in graph
+preparation rather than in retrieval -- and reverses entirely when the
+catalogue's language differs from the question's.
+
+\item A candidate-generation stage that makes selection applicable at patient
+scale at no cost in recall, reported with the \emph{ceiling} it imposes so that a
+narrowing failure cannot be mistaken for a selection failure. It is shown to
+depend on terminology resolution having been applied first.
 
 \item An evaluation protocol that compares a subgraph retriever against a
 production query-generating agent on a shared metric, despite the two exposing
@@ -204,10 +222,15 @@ of the intent- and schema-aware prize function of RQ3.
 \section{Thesis Structure} \label{sec:thesis-structure}
 
 Chapter~\ref{chapter:background} introduces the technical background and
-positions PCST-based selection among the alternatives. Chapter~3 gives the
-mathematical treatment of G-Retriever and PCST that
-Chapter~\ref{chapter:background} deliberately leaves out. Chapter~4 sets out the
-methodology: the graph preparation procedure, the strategies compared, the
-evaluation protocol and the question sets. Chapter~5 describes the
-implementation. Chapter~6 reports and discusses the Phase~1 and Phase~2 results,
-and Chapter~7 concludes.
+positions PCST-based selection among the alternatives.
+Chapter~\ref{chapter:pcst} gives the mathematical treatment that
+Chapter~\ref{chapter:background} deliberately leaves out, and derives from the
+prize and cost definitions three predictions about how the method should behave
+on a graph with the properties measured above.
+Chapter~\ref{chapter:methodology} sets out the methodology: the graph
+preparation procedure, the two-stage retrieval design, the strategies compared,
+the evaluation protocol and the question sets.
+Chapter~\ref{chapter:implementation} describes the implementation and how its
+fidelity to the published one is established.
+Chapter~\ref{chapter:results} reports the measurements and tests the three
+predictions, and Chapter~7 concludes.

@@ -1,0 +1,381 @@
+% !TEX root = ../Thesis.tex
+% ============================================================
+\chapter{Results} \label{chapter:results}
+% ============================================================
+
+% EDITORIAL NOTE. Every number in this chapter is either measured on the live
+% clinical graph or produced by a script in experiments/, and each section names
+% which. Section 6.1 draws the line between the two and states plainly what has
+% NOT been measured yet, so no later section has to hedge. Do not add a number
+% here without a command that reproduces it.
+
+\section{What Is Measured Here, and What Is Not} \label{sec:results-scope}
+
+Results in this chapter come from two sources, and conflating them would make
+the chapter worthless.
+
+\paragraph{Measurements on the clinical graph.} Sections~\ref{sec:results-graph}
+and~\ref{sec:results-preparation} report properties of the live STCS graph and of
+one patient loaded from it, obtained through read-only queries on hospital
+infrastructure. They are facts about the data.
+
+\paragraph{Experiments on a shape-matched replica.}
+Sections~\ref{sec:results-dilution} to~\ref{sec:results-candidates} report
+experiments run on a synthetic patient generated to reproduce the measured
+structure of one real patient exactly -- the same node and edge counts, the same
+label distribution, the same ratio of nodes to distinct texts, the same
+proportion of diagnoses lacking a description. The generator emits rows in the
+shape the database returns and passes them through the same assembly code as the
+real loader, so the structure is identical by construction rather than by
+imitation. Its \emph{content}, however, is invented: analyte names, drug names
+and diagnosis labels are drawn from synthetic vocabularies.
+
+The consequence is a strict limit on what these experiments can support. They are
+evidence about \emph{mechanism} -- whether a size parameter controls size,
+whether tie-breaking decides an outcome, whether resolving a code changes what can
+be retrieved -- because those depend on structure. They are not evidence about
+clinical retrieval quality, which depends on content, and no recall figure from
+the replica should be read as an estimate of recall on the cohort.
+
+\paragraph{Not yet measured.} The comparison against SnapQuery, which
+Chapter~\ref{chapter:introduction} states as RQ1, is not reported here. Neither
+is any result using a trained sentence encoder: every experiment below uses a
+deterministic bag-of-words encoder, which is adequate for the structural
+questions asked and inadequate for anything about semantic quality. Both are
+addressed in Section~\ref{sec:results-threats}.
+
+\section{The Graph as Measured} \label{sec:results-graph}
+
+Table~\ref{tab:measured-graph} collects the properties of the cohort graph that
+drive every design decision in this thesis.
+
+\begin{table}[t]
+\centering
+\caption{The STCS cohort graph at University Hospital Basel, measured through
+read-only queries. Percentages are of the whole graph.}
+\label{tab:measured-graph}
+\begin{tabular}{lr}
+\toprule
+Property & Value \\
+\midrule
+Nodes & 21{,}537{,}305 \\
+Edges & 72{,}218{,}890 \\
+Patients & 1{,}197 \\
+Nodes per patient (mean) & $\approx 17{,}993$ \\
+\midrule
+\multicolumn{2}{l}{\emph{Concentration of the graph in one construct}} \\
+\texttt{Sample} + \texttt{LabTest} + \texttt{LabResult} + \texttt{LabTestEvent} & 20{,}523{,}891 (95.3\%) \\
+\midrule
+\multicolumn{2}{l}{\emph{Degenerate connectivity}} \\
+\texttt{SourceSystem} nodes / mean degree & 168 / 69{,}525 \\
+\texttt{SourceSystem} maximum degree & 10{,}858{,}404 \\
+\texttt{BodySite} nodes / edges carried & 6 / 3{,}454{,}881 \\
+\texttt{TimePattern} nodes / mean degree & 2 / 313{,}012 \\
+\midrule
+\multicolumn{2}{l}{\emph{Relation multiplicity}} \\
+\texttt{hasSourceSystem} & 11{,}680{,}076 \\
+\texttt{hasSubjectPseudoIdentifier} & 11{,}600{,}854 \\
+\texttt{hasAdministrativeCase} & 11{,}566{,}354 \\
+\texttt{hasCode} & 4{,}883{,}809 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two entries deserve comment. A single \texttt{SourceSystem} node carries
+$10{,}858{,}404$ edges, fifteen per cent of every edge in the graph, and the four
+relations listed account for roughly half of all edges between them. This is not
+a data quality problem: provenance is required by the SPHN schema and is
+correctly recorded. It is, however, fatal to an unqualified connectivity
+requirement, and it is the empirical basis for Prediction~3 of
+Section~\ref{sec:pcst-consequences}.
+
+\paragraph{Terminology coverage.} Table~\ref{tab:terminology-coverage} shows the
+five terminologies present and how much of each carries a description in the
+graph. The asymmetry is the important part: laboratory codes are fully described
+and diagnosis codes are two-thirds undescribed.
+
+\begin{table}[t]
+\centering
+\caption{Terminologies in the cohort graph and their description coverage.
+ICD-10-GM is the German national modification of ICD-10 and its labels are in
+German; LOINC descriptions are in English.}
+\label{tab:terminology-coverage}
+\begin{tabular}{llrr}
+\toprule
+Terminology & Used for & Distinct codes & With a description \\
+\midrule
+LOINC~\cite{loinc} & laboratory tests & 544 & 544 (100\%) \\
+ICD-10-GM~\cite{icd10} & diagnoses & 2{,}921 & 972 (33\%) \\
+ATC~\cite{atc} & drugs & 737 & not measured \\
+UCUM & units & 70 & not measured \\
+SNOMED~CT~\cite{snomedct} & mixed & 69 & not measured \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Graph Preparation} \label{sec:results-preparation}
+
+Table~\ref{tab:patient-zero} reports one patient after the preparation procedure
+of Chapter~4: shared terminology nodes folded into the text of the events that
+reference them, provenance pruned, and the four-node laboratory construct
+collapsed to one node per observation.
+
+\begin{table}[t]
+\centering
+\caption{Patient \#0 after graph preparation. The patient index is a position in
+a query result, not an identifier.}
+\label{tab:patient-zero}
+\begin{tabular}{lr}
+\toprule
+Quantity & Value \\
+\midrule
+Nodes & 15{,}810 \\
+Edges & 45{,}562 \\
+\midrule
+\texttt{LabObservation} & 12{,}349 \\
+\texttt{LabTestType} (distinct analytes) & 198 \\
+\texttt{DrugAdministrationEvent} & 2{,}655 \\
+\texttt{Drug} (distinct) & 279 \\
+\texttt{BilledDiagnosis} & 222 \\
+\texttt{AdministrativeCase} & 106 \\
+\midrule
+Distinct \texttt{embed\_text} values & 614 \\
+Nodes per distinct text & 25.7 \\
+Diagnoses with no description & 178 of 222 (80\%) \\
+Laboratory tests with no description & 0 of 12{,}349 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three observations follow.
+
+First, preparation is a substantial reduction on the dominant construct. SPHN
+represents one laboratory result as four event nodes plus shared quantity, unit,
+code and reference-range nodes; the loader emits one. For this patient that turns
+roughly $49{,}400$ raw laboratory event nodes into $12{,}349$.
+
+Second, one prepared patient is $15{,}810$ nodes, about eleven times the average
+WebQSP sample of $1{,}371$ nodes on which G-Retriever was
+validated~\cite{he2024gretriever} -- and this is one patient of $1{,}197$. The
+narrowing step of Section~\ref{sec:results-candidates} is a consequence of this
+row, not a convenience.
+
+Third, $15{,}810$ nodes carry $614$ distinct descriptions. A similarity score can
+therefore sort this graph into at most $614$ classes, and within a class the
+ordering is decided by the sorting routine. This is Prediction~2 of
+Section~\ref{sec:pcst-consequences}, measured.
+
+\section{Prediction 1: The Edge-Prize Mechanism Collapses} \label{sec:results-dilution}
+
+Section~\ref{sec:pcst-consequences} predicted from
+Equations~\ref{eq:edge-prizes} and~\ref{eq:cost-adjustment} that heavily shared
+relation types drive the effective edge cost towards zero, so that PCST returns
+its entire input. Running the published default configuration
+($\texttt{topk}=3$, $\texttt{topk\_e}=5$, $c_e = 0.5$) on the shape-matched
+replica of patient \#0 returned \textbf{15{,}810 of 15{,}810 nodes and
+45{,}562 of 45{,}562 edges} -- the whole graph, for every question tested.
+
+The prediction is confirmed, and the remedy follows directly from the algebra
+rather than from tuning: setting $\texttt{topk\_e} = 0$ removes edge prizes
+entirely, which leaves $c_e$ free of the cap in
+Equation~\ref{eq:cost-adjustment}. Under that configuration the same solver on
+the same graph returns eleven nodes. Every subsequent experiment in this chapter
+uses $\texttt{topk\_e} = 0$ with an explicit $c_e$ for this reason, and the
+choice is an ablation switch rather than a hidden default.
+
+\section{Size Control Across Selection Families} \label{sec:results-size}
+
+Table~\ref{tab:sweep} sweeps each family across its own size parameter on the
+full-size replica and reports the subgraph actually produced. Because the
+parameters are not the same quantity -- a cost against a count against a hop
+number -- the comparison is made on measured size, as
+Section~\ref{sec:methodology-comparability} requires.
+
+\begin{table}[t]
+\centering
+\caption{Recall against measured size on the shape-matched replica, 14 planted
+questions. ``Fraction'' is of the 15{,}810-node graph. Recall figures compare
+only at comparable size; the point of the table is the size column.}
+\label{tab:sweep}
+\begin{tabular}{llrrrc}
+\toprule
+Family & Dial & Nodes & Fraction & Recall & Connected \\
+\midrule
+PCST & $c_e = 3.0$   & 8.0  & 0.05\% & 0.158 & yes \\
+PCST & $c_e = 1.0$   & 10.0 & 0.06\% & 0.162 & yes \\
+PCST & $c_e = 0.5$   & 11.0 & 0.07\% & 0.164 & yes \\
+PCST & $c_e = 0.1$   & 11.0 & 0.07\% & 0.164 & yes \\
+PCST & $c_e = 0.01$  & 11.0 & 0.07\% & 0.164 & yes \\
+PCST & published defaults & 15{,}810.0 & 100\% & 1.000 & yes \\
+\midrule
+Shortest paths & $k = 2$  & 3.0  & 0.02\% & 0.147 & yes \\
+Shortest paths & $k = 10$ & 11.0 & 0.07\% & 0.164 & yes \\
+\midrule
+Top-$k$ nodes + neighbours & $k = 10$  & 21.7    & 0.14\%  & 0.164 & yes \\
+Top-$k$ nodes + neighbours & $k = 30$  & 2{,}243.7 & 14.19\% & 0.277 & yes \\
+Top-$k$ nodes + neighbours & $k = 100$ & 4{,}514.9 & 28.56\% & 0.503 & yes \\
+\midrule
+BFS expansion & $h = 1$ & 7.7        & 0.05\%  & 0.150 & yes \\
+BFS expansion & $h = 2$ & 15{,}333.7 & 96.99\% & 0.925 & yes \\
+BFS expansion & $h = 3$ & 15{,}810.0 & 100\%   & 1.000 & yes \\
+\midrule
+Top-$k$ triples (KAPING) & $k = 10$  & 11.0  & 0.07\% & 0.164 & yes \\
+Top-$k$ triples (KAPING) & $k = 100$ & 93.6  & 0.59\% & 0.352 & \textbf{no} \\
+Top-$k$ triples (KAPING) & $k = 300$ & 209.9 & 1.33\% & 0.519 & \textbf{no} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Four results, in decreasing order of how surprising they are.
+
+\paragraph{At equal size, connectivity contributed nothing.} At approximately
+eleven nodes, PCST, shortest paths, top-$k$ nodes with neighbours and KAPING all
+scored $0.164$ -- identically. On this graph, at the sizes PCST operates in, what
+gets retrieved is decided by the similarity signal and not by the structural
+strategy. This is a direct partial answer to RQ2, and it is a negative one.
+
+\paragraph{Neighbourhood expansion has no usable middle.} BFS returns $7.7$ nodes
+at one hop and $15{,}334$ at two -- from $0.05\%$ of the graph to $97\%$ with no
+setting in between, because the dial is an integer. Top-$k$ nodes with
+neighbours behaves the same way once $k$ is large enough to catch a hub: $21.7$
+nodes at $k=10$, $2{,}244$ at $k=30$. The claim made in
+Section~\ref{sec:subgraph-selection-approaches}, that these methods lose size
+control on a dense graph, is here measured rather than asserted.
+
+\paragraph{PCST's size dial is narrower than advertised.} With
+$\texttt{topk} = 10$, sweeping $c_e$ from $3.0$ down to $0.01$ moved the subgraph
+from $8$ nodes to $11$ and then stopped. The reachable range is $8$--$11$ nodes:
+$c_e$ saturates in both directions, upward by Equation~\ref{eq:cost-adjustment}
+and downward because once every prized node is affordable there is nothing
+further to buy. The effective size dial in this regime is $\texttt{topk}$, not
+$c_e$, and a methodology that sweeps only $c_e$ -- as the published description
+suggests -- explores a narrow band and reports it as a curve.
+
+\paragraph{Independent scoring returns disconnected results.} KAPING's output is
+disconnected for every $k \geq 100$, as the family's description predicts. It is
+nonetheless competitive on recall at matched size, which is worth stating plainly
+rather than burying: the connectivity guarantee is not, on this graph, buying
+recall.
+
+\section{Terminology Resolution} \label{sec:results-terminology}
+
+Section~\ref{subsec:terminologies} argued that resolving codes to descriptions is
+a precondition for retrieval rather than preprocessing hygiene.
+Table~\ref{tab:terminology-gain} measures it, using questions that never quote
+the code they are looking for -- a question containing \texttt{N18.5} finds the
+\texttt{N18.5} node by string overlap and measures nothing.
+
+\begin{table}[t]
+\centering
+\caption{Answer-node recall on diagnosis questions under a catalogue covering
+85\% of code-only codes across all resolution tiers. Identical for both
+retrievers, which is itself the result.}
+\label{tab:terminology-gain}
+\begin{tabular}{lcc}
+\toprule
+Condition & Described diagnoses & Code-only diagnoses \\
+\midrule
+No catalogue & 1.00 & \textbf{0.00} \\
+Catalogue, language matches the question & 1.00 & \textbf{0.80} \\
+Catalogue, plus parent-concept words & 1.00 & 0.80 \\
+Catalogue, language differs from the question & \textbf{0.00} & \textbf{0.00} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three conclusions.
+
+Resolution moves code-only diagnoses from unreachable to $0.80$; the shortfall
+from $1.00$ is the deliberately incomplete catalogue, and the per-tier counts are
+reported by the enrichment step rather than folded into a single coverage
+figure.
+
+The gain is \emph{identical} for PCST and for KAPING. Terminology resolution
+changes what is reachable at all, not which method reaches it better, so it
+belongs to graph preparation and must not be reported as a retrieval result.
+
+A catalogue in the wrong language is worse than no catalogue: it replaced text
+that was already matching and took described diagnoses from $1.00$ to $0.00$.
+Whether this step helps or harms therefore depends on a fact about deployment --
+the language users write questions in -- that is not a detail to settle late.
+
+Adding parent-concept words, the simplest form of the schema signal of RQ3,
+changed nothing here. The synthetic vocabulary gives leaf labels that already
+subsume their parents' words, so the replica cannot fairly judge this; it needs a
+catalogue with real hierarchical labels.
+
+\section{Candidate Generation} \label{sec:results-candidates}
+
+One prepared patient is far larger than the per-question subgraphs G-Retriever
+was built for, so Chapter~4 introduces a narrowing stage.
+Table~\ref{tab:candidates} reports its effect. \emph{Ceiling} is the recall the
+inner retriever could have reached given what the narrowing kept: reporting
+recall without it makes a selection failure and a narrowing failure look
+identical.
+
+\begin{table}[t]
+\centering
+\caption{Two-stage retrieval on the full-size replica, PCST inner. Recall is
+comparable only at comparable node count, which is why that column is present.}
+\label{tab:candidates}
+\begin{tabular}{lrrrr}
+\toprule
+Stage one & Nodes & Recall & Ceiling & ms / question \\
+\midrule
+none (whole patient graph)  & 11.0  & 0.164 & 1.000 & 78 \\
+Seed expansion, cap 500     & 11.0  & 0.164 & 0.643 & 19 \\
+Seed expansion, cap 2{,}000 & 11.0  & 0.164 & 0.773 & 24 \\
+Top-$n$ similar, $n = 500$  & 220.6 & 0.382 & 0.648 & 14 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Narrowing by seed expansion is free: the same eleven-node subgraph at the same
+recall, three to four times faster. Across $1{,}197$ patients that is the
+difference between a parameter sweep that completes and one that does not.
+
+Top-$n$ similarity does not control size. The most similar nodes are not adjacent
+to one another, so the induced region is nearly edgeless, PCST is handed isolated
+fragments and returns all of them: $220.6$ nodes rather than $11$. Its higher
+recall is a larger subgraph, not a better one -- the clearest illustration in
+this thesis of why recall must always be read beside a size.
+
+The finding that was not anticipated is in the ceiling column when broken out by
+question type: \textbf{every generator discarded every code-only diagnosis},
+ceiling $0.000$. A node with no matching text is neither similar to the question
+nor adjacent to anything that is, so narrowing removes it first. Terminology
+resolution is therefore a \emph{prerequisite} for candidate generation, not an
+independent improvement alongside it, and the two steps must be ordered.
+
+\section{Threats to Validity} \label{sec:results-threats}
+
+\paragraph{The comparison this thesis exists to make is not in this chapter.}
+RQ1 asks whether PCST-based selection outperforms SnapQuery, and no SnapQuery
+result is reported. Until one is, the chapter establishes how the method behaves
+on this data and not whether it is preferable to what is deployed.
+
+\paragraph{The encoder is a placeholder.} Every experiment uses a deterministic
+bag-of-words encoder. That is appropriate for structural questions -- a size dial
+either controls size or does not, whatever the embedding -- and inappropriate for
+anything semantic. In particular the cross-language result of
+Section~\ref{sec:results-terminology} shows that a \emph{lexical} encoder cannot
+bridge a language gap; a multilingual sentence encoder might, and that experiment
+has not been run.
+
+\paragraph{Content is synthetic.} The replica is faithful in structure and
+invented in content, so the recall values are properties of a synthetic
+vocabulary. Comparisons between rows of the same table are meaningful; the
+absolute values are not estimates of clinical performance.
+
+\paragraph{One patient.} Every experiment derives from the structure of a single
+patient, who may not be typical of the cohort. The distribution of patient sizes
+across the $1{,}197$ has not been measured, and it determines whether one graph
+per question is feasible at all.
+
+\paragraph{Questions are planted, not collected.} The evaluation questions are
+generated with known answers rather than drawn from real usage. They test the
+harness and the mechanism; they cannot speak to what clinicians actually ask, and
+in particular the finding that a question such as ``all creatinine values'' has
+$2{,}407$ answer nodes for one patient suggests that a share of real questions
+are aggregations, for which answer-node recall is undefined
+(Section~\ref{sec:thesis-scope}).

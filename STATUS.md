@@ -429,16 +429,22 @@ Target 30–50 pages. Budget encoded in `checktex.py`:
 
 | Chapter | Pages | State |
 |---|---|---|
-| 1 Introduction | 5 | revised 19 Aug — measured problem statement, RQ1–RQ3 |
-| 2 Background | 8 | revised 20 Aug — comparison table, SPHN + terminology sections |
-| 3 G-Retriever and PCST | 6 | not started; owns all the algebra |
-| 4 Methodology | 8 | not started |
-| 5 Implementation | 6 | not started |
-| 6 Results and Discussion | 8 | not started; F1–F11 go here, and several already have tables |
+| 1 Introduction | 5 | 3.6 p — measured problem statement, RQ1–RQ3, contributions now report findings |
+| 2 Background | 8 | 8.2 p — comparison table, SPHN + terminology sections |
+| 3 G-Retriever and PCST | 6 | 3.9 p — objective, prizes, virtual nodes, cost cap, and the three predictions |
+| 4 Methodology | 8 | 2.8 p — thin; needs the SnapQuery protocol and the gold-set procedure |
+| 5 Implementation | 6 | 2.2 p — thin; needs the loader and testing sections expanded |
+| 6 Results | 8 | 5.2 p — F1–F12 with tables; missing the SnapQuery comparison and every figure |
 | 7 Conclusion | 3 | not started |
 
-Written: **12.4 of 44 pages.** Chapter 3 needs no data and no server, so it is the
-one that can be finished at any time.
+Written: **27.5 of 44 pages** (29 Aug). The Abstract is revised and reports measured
+findings instead of promises. Chapters 3–6 are wired into `Thesis.tex`.
+
+**Not verified by a compiler.** There is no LaTeX toolchain on this machine, so
+`checktex.py` is all the checking there is: it confirms every `ef` resolves,
+every `\cite` key exists, and braces and environments balance. It cannot catch a
+genuine LaTeX error. Build it on the server or in Overleaf before sending anything
+to a supervisor.
 
 The repetition Andi flagged had one cause: four ideas each had three or four homes.
 Each now has exactly one, recorded in an editorial-note comment at the top of each

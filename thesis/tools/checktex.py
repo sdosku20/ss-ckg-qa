@@ -35,6 +35,8 @@ PAGE_BUDGET = {
     "Chapters/Conclusion.tex": 3,
 }
 
+BEGIN = re.compile(r"\\begin\{([^}]+)\}")
+END = re.compile(r"\\end\{([^}]+)\}")
 LABEL = re.compile(r"\\label\{([^}]+)\}")
 REF = re.compile(r"\\(?:ref|autoref|eqref|nameref)\{([^}]+)\}")
 CITE = re.compile(r"\\cite[a-zA-Z]*\{([^}]+)\}")
@@ -51,6 +53,49 @@ def sources(root: Path) -> dict[Path, str]:
         for p in files
         if "Template" not in p.parts and not p.name.endswith(".bak")
     }
+
+
+def check_structure(src: dict, root) -> list:
+    """Catch the two syntax errors that a missing LaTeX install cannot.
+
+    There is no compiler on every machine this project is edited from, so a
+    stray brace or an unclosed environment would otherwise be discovered only at
+    build time, possibly by a supervisor. Neither check is a substitute for
+    compiling; both are cheap and catch the common cases.
+    """
+    problems = []
+    for path, text in src.items():
+        rel = path.relative_to(root).as_posix()
+        body = COMMENT.sub("", text)
+
+        # Environments must nest. Report the first mismatch with its name, since
+        # an unclosed environment usually swallows the rest of the file.
+        stack = []
+        for match in re.finditer(r"\\(begin|end)\{([^}]+)\}", body):
+            kind, name = match.group(1), match.group(2)
+            if kind == "begin":
+                stack.append(name)
+            elif not stack:
+                problems.append(f"{rel}: \\end{{{name}}} with no matching \\begin")
+                break
+            elif stack[-1] != name:
+                problems.append(f"{rel}: \\end{{{name}}} closes \\begin{{{stack[-1]}}}")
+                break
+            else:
+                stack.pop()
+        if stack:
+            problems.append(f"{rel}: unclosed environment(s) {stack}")
+
+        # Braces, ignoring \{ and \} escapes.
+        depth = 0
+        for match in re.finditer(r"(?<!\\)[{}]", body):
+            depth += 1 if match.group() == "{" else -1
+            if depth < 0:
+                problems.append(f"{rel}: unmatched closing brace")
+                break
+        if depth > 0:
+            problems.append(f"{rel}: {depth} unclosed brace(s)")
+    return problems
 
 
 def main() -> int:
@@ -70,10 +115,12 @@ def main() -> int:
 
     dangling = sorted(refs - labels)
     missing = sorted(cites - bib)
+    structural = check_structure(src, root)
 
     print(f"{len(src)} .tex files, {len(labels)} labels, {len(cites)} distinct citations")
     print(f"dangling \\ref  : {', '.join(dangling) if dangling else 'none'}")
     print(f"missing bib key: {', '.join(missing) if missing else 'none'}")
+    print(f"structure      : {'; '.join(structural) if structural else 'balanced'}")
 
     unused = sorted(bib - cites)
     if unused:
@@ -101,7 +148,7 @@ def main() -> int:
     planned = sum(PAGE_BUDGET.values())
     print(f"  {'TOTAL (written)':34s} {'':6s}        ~{total:4.1f} p   of {planned} planned")
 
-    return 1 if (dangling or missing) else 0
+    return 1 if (dangling or missing or structural) else 0
 
 
 if __name__ == "__main__":

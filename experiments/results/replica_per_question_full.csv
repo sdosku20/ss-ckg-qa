@@ -1,29 +1,29 @@
 retriever,config,param_topk,param_topk_e,param_cost_e,param_tie_break,qid,question,kind,validated,answer_node_recall,skipped_reason,edge_recall,edge_precision,nodes,edges,chars,node_fraction,connected,param_k
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-0,lab result: creatinine,entity,False,0.0004154549231408392,,,0.0,11,10,1710,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-1,lab result: urea,entity,False,0.0008,,,0.0,11,10,1471,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-2,lab result: sodium,entity,False,0.0011123470522803114,,,0.0,11,10,1484,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-3,lab result: potassium,entity,False,0.0013812154696132596,,,0.0,11,10,1781,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-4,lab result: chloride,entity,False,0.0016181229773462784,,,0.0,11,10,1505,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-0,drug administration: tacrolimus,entity,False,0.01669449081803005,,,0.0,11,10,1128,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-1,drug administration: ciclosporin,entity,False,0.0423728813559322,,,0.0,11,10,1150,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-2,drug administration: mycophenolate mofetil,entity,False,0.06097560975609756,,,0.0,11,10,1262,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-3,drug administration: prednisolone,entity,False,0.078125,,,0.0,11,10,1162,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-4,drug administration: basiliximab,entity,False,0.09345794392523364,,,0.0,11,10,1150,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-named-0,"lungenentzuendung, stadium 3",entity,False,1.0,,,0.0,11,10,1143,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-named-1,"herzinsuffizienz, stadium 4",entity,False,1.0,,,0.0,11,10,1181,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-codeonly-0,"chronische erkrankung, stadium 1",entity,False,0.0,,,0.0,11,10,1190,0.0006957621758380771,True,
-PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-codeonly-1,"akute entzuendung, stadium 2",entity,False,0.0,,,0.0,11,10,1197,0.0006957621758380771,True,
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-0,lab result: creatinine,entity,False,0.0004154549231408392,,,0.0,11,10,1710,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-1,lab result: urea,entity,False,0.0008,,,0.0,11,10,1506,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-2,lab result: sodium,entity,False,0.0011123470522803114,,,0.0,11,10,1488,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-3,lab result: potassium,entity,False,0.0013812154696132596,,,0.0,11,10,1732,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-4,lab result: chloride,entity,False,0.0016181229773462784,,,0.0,11,10,1507,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-0,drug administration: tacrolimus,entity,False,0.01669449081803005,,,0.0,11,10,1128,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-1,drug administration: ciclosporin,entity,False,0.0423728813559322,,,0.0,11,10,1150,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-2,drug administration: mycophenolate mofetil,entity,False,0.06097560975609756,,,0.0,11,10,1262,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-3,drug administration: prednisolone,entity,False,0.078125,,,0.0,11,10,1162,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-4,drug administration: basiliximab,entity,False,0.09345794392523364,,,0.0,11,10,1150,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-named-0,"lungenentzuendung, stadium 3",entity,False,1.0,,,0.0,12,10,1226,0.0007590132827324478,False,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-named-1,"herzinsuffizienz, stadium 4",entity,False,1.0,,,0.0,11,10,1132,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-codeonly-0,"chronische erkrankung, stadium 1",entity,False,0.0,,,0.0,11,10,1146,0.0006957621758380771,True,10.0
-top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-codeonly-1,"akute entzuendung, stadium 2",entity,False,0.0,,,0.0,11,10,1143,0.0006957621758380771,True,10.0
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-0,lab result: creatinine,entity,False,0.0004154549231408392,,,0.0,11,10,2234,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-1,lab result: urea,entity,False,0.0008,,,0.0,11,10,1954,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-2,lab result: sodium,entity,False,0.0011123470522803114,,,0.0,11,10,2096,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-3,lab result: potassium,entity,False,0.0013812154696132596,,,0.0,11,10,2236,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,analyte-4,lab result: chloride,entity,False,0.0016181229773462784,,,0.0,11,10,1998,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-0,drug administration: tacrolimus,entity,False,0.01669449081803005,,,0.0,11,10,1476,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-1,drug administration: ciclosporin,entity,False,0.0423728813559322,,,0.0,11,10,1509,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-2,drug administration: mycophenolate mofetil,entity,False,0.06097560975609756,,,0.0,11,10,1731,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-3,drug administration: prednisolone,entity,False,0.078125,,,0.0,11,10,1532,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,drug-4,drug administration: basiliximab,entity,False,0.09345794392523364,,,0.0,11,10,1509,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-named-0,"lungenentzuendung, mit komplikationen, links",entity,False,1.0,,,0.0,11,10,2032,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-named-1,"blutarmut, grad eins, rechts",entity,False,1.0,,,0.0,11,10,1834,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-codeonly-0,"chronische erkrankung, grad eins",entity,False,0.0,,,0.0,11,10,1866,0.0006957621758380771,True,
+PCST,"PCST(topk=10, topk_e=0, cost_e=0.5, tie_break=stable)",10.0,0.0,0.5,stable,dx-codeonly-1,"nierenfunktionsstoerung, nicht naeher bezeichnet",entity,False,0.0,,,0.0,11,10,2154,0.0006957621758380771,True,
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-0,lab result: creatinine,entity,False,0.0004154549231408392,,,0.0,11,10,2225,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-1,lab result: urea,entity,False,0.0008,,,0.0,11,10,1920,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-2,lab result: sodium,entity,False,0.0011123470522803114,,,0.0,11,10,1955,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-3,lab result: potassium,entity,False,0.0013812154696132596,,,0.0,11,10,2285,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,analyte-4,lab result: chloride,entity,False,0.0016181229773462784,,,0.0,11,10,1998,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-0,drug administration: tacrolimus,entity,False,0.01669449081803005,,,0.0,11,10,1476,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-1,drug administration: ciclosporin,entity,False,0.0423728813559322,,,0.0,11,10,1509,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-2,drug administration: mycophenolate mofetil,entity,False,0.06097560975609756,,,0.0,11,10,1731,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-3,drug administration: prednisolone,entity,False,0.078125,,,0.0,11,10,1532,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,drug-4,drug administration: basiliximab,entity,False,0.09345794392523364,,,0.0,11,10,1509,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-named-0,"lungenentzuendung, mit komplikationen, links",entity,False,1.0,,,0.0,11,10,1840,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-named-1,"blutarmut, grad eins, rechts",entity,False,1.0,,,0.0,11,10,1788,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-codeonly-0,"chronische erkrankung, grad eins",entity,False,0.0,,,0.0,11,10,1742,0.0006957621758380771,True,10.0
+top-k triples (KAPING),top-k triples (KAPING)(k=10),,,,,dx-codeonly-1,"nierenfunktionsstoerung, nicht naeher bezeichnet",entity,False,0.0,,,0.0,11,10,2000,0.0006957621758380771,True,10.0
