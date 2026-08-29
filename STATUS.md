@@ -23,15 +23,15 @@ Twelve measured findings in §4a.
 **Not done, and the honest critical path: the SnapQuery baseline harness.** The
 thesis result is a comparison against SnapQuery, and not one real SnapQuery
 response has been observed. Everything else remaining can be built offline
-against the replica; that one cannot. Full inventory in §5 — roughly 15 focused
-days of Phase 1 code left, which is the entire budget to 10 September with no
-slack.
+against the replica; that one cannot. Full inventory in §5 — roughly 12 focused
+days of Phase 1 code left against 8 working days to 10 September, so the
+arithmetic does not close and something has to be chosen.
 
 **Ahead of the plan on the retrieval core; not ahead overall.** The core landing
-in week 6 is genuinely early against a plan that puts Phase 2 in weeks 19–20. The
-codebase as a whole is not ahead: candidate generation, the multi-patient loop,
-the baseline harness and every figure are still missing, and the writing is at
-12.4 of 44 planned pages.
+in week 7 is genuinely early against a plan that puts Phase 2 in weeks 19–20. The
+codebase as a whole is not ahead: the multi-patient loop, the baseline harness and
+every figure are still missing, and the writing is at 12.4 of 44 planned pages
+with nothing measured after 20 August yet written up.
 
 ---
 
