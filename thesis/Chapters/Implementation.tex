@@ -3,15 +3,12 @@
 \chapter{Implementation} \label{chapter:implementation}
 % ============================================================
 
-% EDITORIAL NOTE. This chapter exists to make two claims checkable: that the PCST
-% implementation used here behaves exactly like the published one, and that every
-% number in Chapter 6 can be regenerated. Anything that does not serve one of
-% those does not belong here.
-
-The software is a Python package, \texttt{ikgqa}, organised so that each concern
-in Chapter~\ref{chapter:methodology} lives in one place and can be exercised on
-its own. This chapter describes the parts whose correctness the results depend
-on, and how each is established.
+Two claims need to be checkable for the results to mean anything: that the PCST
+implementation used here behaves exactly like the published one, and that every
+number reported later can be regenerated. The software is a Python package,
+\texttt{ikgqa}, organised so that each concern raised in
+Chapter~\ref{chapter:methodology} lives in one place and can be exercised on its
+own, which is what makes both claims testable rather than asserted.
 
 \section{Structure} \label{sec:implementation-structure}
 
@@ -42,8 +39,8 @@ that none of these mismatches crashes. A graph with the wrong number of embeddin
 rows produces a plausible but wrong subgraph, and a research bug of that kind can
 survive for months. Validating once converts it into an error message.
 
-Every retrieval strategy implements one interface -- given a graph and an embedded
-question, return node and edge identifiers -- and nothing else. The strategies do
+Every retrieval strategy implements one interface and nothing else: given a graph
+and an embedded question, return node and edge identifiers. The strategies do
 not embed text, do not score themselves, and do not call a model. That narrowness
 is what allows the evaluation harness to treat them as interchangeable, which is
 the premise of the entire comparison.
@@ -93,8 +90,9 @@ in Python, so that only flat rows cross the network and no unnecessary node is
 ever materialised. Patients are addressed by position in an ordered result, which
 keeps pseudo-identifiers on the server.
 
-Fetching and assembly are separate functions. Assembly is pure -- rows in, graph
-out -- so it is unit tested against fixture rows with no database, while the
+Fetching and assembly are separate functions. Assembly is pure, taking rows in
+and returning a graph, so it is unit tested against fixture rows with no
+database, while the
 Cypher itself is validated by running it. This separation is what allowed the
 assembly logic to be developed and tested before database access was available,
 and it is what lets the replica of Section~\ref{sec:implementation-replica} reuse
@@ -117,8 +115,8 @@ emits rows in the shape the Cypher returns and passes them to the same assembly
 function the loader uses. The structure is therefore identical by definition, and
 the assembly code is exercised by every offline experiment rather than only when
 the database is reachable. Achieved counts are printed against measured targets
-on every run, so the one quantity that does not match exactly -- the number of
-distinct texts, eleven per cent high -- is visible rather than buried.
+on every run, so the one quantity that does not match exactly, the number of
+distinct texts at eleven per cent high, stays visible rather than buried.
 
 The limits of the replica are stated in Section~\ref{sec:results-scope} and
 repeated in the module itself, because a synthetic artefact that is faithful in
@@ -131,8 +129,9 @@ metric's behaviour on undefined cases, the loader's assembly against fixtures,
 the terminology tiers, and the two-stage index mapping.
 
 Two areas receive disproportionate attention because their failures are silent.
-The first is the retrieval contract -- identifiers sorted, unique, in range, and
-the node set closed under the returned edges -- asserted after every strategy in
+The first is the retrieval contract, requiring identifiers to be sorted, unique
+and in range, with the node set closed under the returned edges. It is asserted
+after every strategy in
 every test, which is how the edge-ordering deviation above was found. The second
 is the translation of identifiers between a narrowed subgraph and the original
 graph: a result returned in the wrong index space consists of plausible

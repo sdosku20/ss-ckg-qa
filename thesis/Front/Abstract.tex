@@ -1,57 +1,54 @@
 % !TEX root = ../Thesis.tex
 \chapter{Abstract}
 
-% Revised 29 August 2026. The previous draft described the project as being in its
-% second week and stated its results in the future tense. This version reports what
-% has been measured and says plainly what has not. The last paragraph must be
-% revised again once the SnapQuery comparison and Phase 2 are complete.
+% Revise the final paragraph once the SnapQuery comparison and Phase 2 are done.
 
-Clinical knowledge graphs record medical entities -- diagnoses, drugs, laboratory
-results -- together with the relations between them, in a form that can be audited
-one fact at a time. That makes them an attractive backend for question answering,
-but a large language model placed in front of such a graph cannot be shown all of
-it: a hospital-scale graph produces far more text than any model can read at once.
-Something must first choose which part of the graph the model sees. This thesis
-studies that choice, called subgraph selection, on the Swiss Personalized Health
-Network (SPHN) graph of the Swiss Transplant Cohort Study at University Hospital
-Basel, and compares the Prize-Collecting Steiner Tree (PCST) formulation
-introduced by G-Retriever against SnapQuery, the assistant clinicians and data
-managers at the STCS Data Center already use.
+Clinical knowledge graphs store medical facts as entities and the relations
+between them: a diagnosis, the drug given for it, the laboratory value that
+prompted a change of dose. Every fact can be checked on its own, which is what
+makes such a graph appealing as the backend for a question answering system. The
+difficulty is size. A hospital graph serialises to far more text than a language
+model can read, so before any question can be answered, something has to decide
+which fragment of the graph the model will be shown.
 
-The comparison is made on answer-node recall at a given subgraph size: how much of
-a correct answer the retrieved subgraph contains, reported against how large that
-subgraph is. Two internal ablations -- similarity-only top-$k$ selection and
-breadth-first expansion -- separate the contribution of the connectivity
-constraint from that of the underlying similarity scores.
+This thesis studies that decision on the Swiss Personalized Health Network (SPHN)
+graph of the Swiss Transplant Cohort Study at University Hospital Basel. It
+compares the Prize-Collecting Steiner Tree (PCST) formulation introduced by
+G-Retriever with SnapQuery, the assistant that clinicians and data managers at
+the STCS Data Center already rely on. Both are scored on answer-node recall at a
+given subgraph size: how much of a correct answer the retrieved fragment
+contains, relative to how large that fragment is. Two ablations, similarity-only
+top-$k$ selection and breadth-first expansion from seed nodes, separate what the
+connectivity constraint contributes from what the similarity scores contribute.
 
-The graph turns out to differ from the benchmarks G-Retriever was validated on in
-ways that change how the method behaves. It holds 21{,}537{,}305 nodes for 1{,}197
-patients; 95.3\% of it is a single reified laboratory construct; a handful of
-provenance nodes carry a large fraction of all edges, one of them 15\% on its own;
-and almost no node carries text of its own, so that after graph preparation a
-single patient's 15{,}810 nodes share only 614 distinct descriptions. Three
-consequences are derived from G-Retriever's prize and cost definitions and then
-measured. Its edge-prize mechanism dilutes to nothing when relation types are
-shared at high multiplicity, and under the published parameters the method returns
-the entire graph it is given. Node selection is decided by tie-breaking rather
-than by similarity, so similarity identifies which kind of entity a question
-concerns but not which instance. And connectivity is nearly free once
-high-degree provenance nodes are present, so at matched subgraph size every
-strategy tested -- connected or not -- recalls the same amount.
+Measurement showed the graph to differ from the benchmarks G-Retriever was
+validated on in ways that change how the method behaves. It holds 21{,}537{,}305
+nodes for 1{,}197 patients. A single reified laboratory construct accounts for
+95.3\% of them. A few provenance nodes carry a large share of all edges, one of
+them fifteen per cent by itself. Text is scarce and heavily shared, so that one
+patient's 15{,}810 prepared nodes rest on only 614 distinct descriptions.
 
-Two further contributions follow from those measurements. Resolving terminology
-codes to canonical descriptions, rather than embedding whatever label the graph
-happens to carry, moves diagnoses that no wording could retrieve from zero recall
-to 0.80; the gain is identical for every retrieval strategy, which places it in
-graph preparation rather than in retrieval, and it reverses entirely when the
-catalogue's language differs from the question's. A candidate-generation stage
-makes the method applicable at patient scale at no cost in recall, and is shown to
-depend on terminology resolution having happened first.
+Three consequences follow from G-Retriever's prize and cost definitions, and all
+three were then confirmed by experiment. The edge-prize mechanism dilutes to
+nothing when relation types repeat at high multiplicity, and under the published
+parameters the method returned the entire graph it was given. Node selection is
+settled by tie-breaking rather than by similarity, so a score can identify which
+kind of entity a question concerns but not which instance of it. Connectivity
+costs almost nothing to satisfy once high-degree provenance nodes are present,
+and at matched subgraph size every strategy tested recalled the same amount,
+whether it enforced connectivity or ignored it entirely.
 
-At the time of writing the comparison against SnapQuery has not yet been run, and
-all retrieval experiments use a deterministic lexical encoder on a synthetic graph
-that reproduces the measured structure of one real patient. The results reported
-here therefore concern the behaviour of the method on this class of graph rather
-than its clinical retrieval quality. This abstract will be revised once the
-SnapQuery comparison and the answer-faithfulness evaluation of Phase~2 are
-complete.
+Two further results came out of the same measurements. Resolving terminology
+codes to canonical descriptions, instead of embedding whatever label the graph
+happens to carry, lifts diagnoses that no wording could retrieve from zero recall
+to 0.80. Every retrieval strategy gains equally, which places the step in graph
+preparation rather than in retrieval, and the gain reverses completely when the
+catalogue is written in a different language from the question. A
+candidate-generation stage brings the method within reach at patient scale
+without costing recall, provided terminology resolution has already been applied.
+
+The comparison against SnapQuery has not yet been run. All retrieval experiments
+reported here use a deterministic lexical encoder on a synthetic graph built to
+reproduce the measured structure of one real patient, so they describe how the
+method behaves on this class of graph rather than how well it retrieves clinical
+answers.

@@ -3,21 +3,12 @@
 \chapter{G-Retriever and Prize-Collecting Steiner Trees} \label{chapter:pcst}
 % ============================================================
 
-% EDITORIAL NOTE. Chapter 2 deliberately describes PCST selection without algebra,
-% and promises the detail here exactly once. This chapter is that promise: the
-% objective, the prize and cost definitions, the transformation that lets edges
-% carry prizes, the solver, and -- Section 3.7 -- what those definitions predict
-% on a graph with the properties measured in Section 1.2. Those predictions are
-% what Chapter 6 tests, so the analysis here is not decoration: it is the
-% hypothesis.
-
-Chapter~\ref{chapter:background} placed PCST-based selection among the
-alternatives and deferred the mathematics. This chapter supplies it. The purpose
-is not completeness for its own sake but a specific one: the behaviour this
-thesis observes on clinical data follows from the prize and cost definitions
-rather than from anything clinical, and that can only be shown by writing them
-down. Section~\ref{sec:pcst-consequences} derives two predictions from the
-definitions alone, and Chapter~6 reports what happened when they were tested.
+The behaviour this thesis observes on clinical data follows from G-Retriever's
+prize and cost definitions rather than from anything clinical, and the only way
+to show that is to write the definitions down. Chapter~\ref{chapter:background}
+placed PCST-based selection among the alternatives without the algebra. The
+algebra follows here, and Section~\ref{sec:pcst-consequences} draws predictions
+from it that Chapter~\ref{chapter:results} then puts to the test.
 
 \section{Subgraph Selection as an Optimisation Problem} \label{sec:selection-formal}
 
@@ -243,17 +234,19 @@ Equation~\ref{eq:node-prizes} depends on $\pi(v)$, a strict ordering. When many
 nodes share one description their similarities are exactly equal, so $\pi$ is
 determined by whatever order the sorting routine happens to produce among ties.
 In the measured cohort $4{,}832{,}744$ laboratory tests resolve to $544$ distinct
-descriptions, and one patient's $15{,}810$ nodes carry $614$ distinct texts --
-about $26$ nodes per text. The prediction is that similarity identifies the
+descriptions, and one patient's $15{,}810$ nodes carry $614$ distinct texts
+between them, about $26$ nodes per text. The prediction is that similarity
+identifies the
 \emph{kind} of entity a question concerns but not \emph{which} instance, and that
 two correct implementations of the same algorithm can return different subgraphs
 for the same question.
 
 \paragraph{Prediction 3: connectivity is cheap where hubs exist.} The value of
-the connectivity constraint depends on paths being expensive. When a small set of
-nodes has very high degree -- $168$ provenance nodes of average degree
-$69{,}525$, six anatomical-site nodes carrying $3{,}454{,}881$ edges -- almost
-any pair of nodes is joined by a path of length two or three through one of them.
+the connectivity constraint depends on paths being expensive. Consider what
+happens when a small set of nodes has very high degree, as it does here with
+$168$ provenance nodes of average degree $69{,}525$ and six anatomical-site nodes
+carrying $3{,}454{,}881$ edges. Almost any pair of nodes is then joined by a path
+of length two or three through one of them.
 The constraint is then satisfiable at negligible cost, and Steiner nodes stop
 being informative. The prediction is that connectivity contributes little until
 such nodes are excluded, and that excluding them changes what the subgraph
@@ -262,8 +255,7 @@ contains rather than how large it is.
 \medskip
 
 None of the three is a defect in G-Retriever, which was designed for and
-validated on a different kind of graph. They are the price of the transfer, and
-stating them as consequences of Equations~\ref{eq:node-prizes}
-to~\ref{eq:cost-adjustment} rather than as observations is what makes them
-testable. Chapter~4 turns each into a methodological choice that can be switched
-off, and Chapter~6 reports the measurements.
+validated on a different kind of graph. They are the price of the transfer.
+Deriving them from Equations~\ref{eq:node-prizes} to~\ref{eq:cost-adjustment},
+instead of reporting them as things that happened to be observed, is what makes
+them testable predictions rather than post-hoc explanations.

@@ -3,35 +3,6 @@
 \chapter{Background} \label{chapter:background}
 % ============================================================
 
-% EDITORIAL NOTE (revision, 20 Aug 2026). This chapter was flagged as repetitive
-% together with Chapter 1. Four specific causes were removed:
-%   * the opening paragraph was a prose table of contents that restated every
-%     section heading. LaTeX already produces one.
-%   * "Chapter 3 gives the mathematical detail" appeared four times (chapter
-%     opening, twice in Section 2.5, and in the summary). It now appears once,
-%     in Section 2.5, at the point a reader first wants it.
-%   * the comparison of selection families was made twice, in Section 2.4 and
-%     again in Section 2.5. Section 2.4 is now its only home and carries a
-%     table, so the comparison need not be restated in prose.
-%   * Section 2.8 restated the research gap already stated at the end of
-%     Section 2.7.6. It now does a different job: it relates the surveyed
-%     methods to the measured properties of this graph and names the failure
-%     modes those properties predict.
-% Two subsections were added rather than trimmed: the SPHN subsection was a
-% placeholder and now carries the completed schema review, and clinical
-% terminologies are given their own subsection because the multilingual
-% terminology problem turned out to be one of the thesis's contributions.
-
-This chapter builds up the background in three steps: retrieval over text and
-then over graphs (Sections~\ref{sec:kg-neo4j}--\ref{sec:graph-retrieval}), the
-narrower question of \emph{which} part of a graph to retrieve
-(Sections~\ref{sec:subgraph-selection-approaches}--\ref{sec:gnn-llm}), and the
-clinical setting in which this thesis asks that question
-(Section~\ref{sec:clinical-kg}). Section~\ref{sec:background-summary} closes by
-relating the surveyed methods to the graph measured in
-Section~\ref{sec:problem-statement}, which is where the reasons to expect
-trouble first become concrete.
-
 \section{Knowledge Graphs and Graph Databases} \label{sec:kg-neo4j}
 
 A knowledge graph represents information as a set of entities and the relations
@@ -116,11 +87,9 @@ rather than for the large, dense graphs typical of hospital data.
 
 The methods above retrieve individual pieces of a graph, but say little about how
 those pieces should be combined into the connected region eventually handed to
-the LLM. This section is the single place in the thesis where the families of
-subgraph selection strategies are compared; later chapters refer back to it
-rather than restating the comparison. The axis that separates them in practice is
-how each one handles connectivity, and Table~\ref{tab:selection-families}
-summarises the result.
+the LLM. What separates the available families in practice is how each one
+handles connectivity, and Table~\ref{tab:selection-families} summarises where
+they stand.
 
 The simplest strategy, top-$k$ selection, scores every node and edge by
 similarity to the query and keeps the $k$ highest-scoring ones, with $k$ fixed in

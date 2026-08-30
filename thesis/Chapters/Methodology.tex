@@ -3,17 +3,12 @@
 \chapter{Methodology} \label{chapter:methodology}
 % ============================================================
 
-% EDITORIAL NOTE. Every choice in this chapter is stated as a decision with a
-% measured justification and an off switch, because a pipeline whose steps cannot
-% be disabled cannot be ablated, and an unablatable step cannot be reported as a
-% contribution. Where a decision is still open it is marked as such rather than
-% quietly settled.
-
-This chapter sets out how the comparison is made: what is done to the graph
-before any retrieval happens, how retrieval is staged, what is measured, and on
-which questions. The guiding constraint is that each step must be switchable, so
-that Chapter~\ref{chapter:results} can attribute an effect to it rather than to
-the pipeline as a whole.
+Every choice described below is a decision with a measured justification and an
+off switch. That constraint is deliberate. A pipeline whose steps cannot be
+disabled cannot be ablated, and a step that cannot be ablated cannot honestly be
+reported as a contribution, because its effect stays indistinguishable from the
+effect of the pipeline as a whole. Decisions that remain open are marked as open
+rather than quietly settled.
 
 \section{Graph Preparation} \label{sec:methodology-preparation}
 
@@ -31,8 +26,8 @@ before anything else runs. Cohort-level questions are out of scope for the metri
 for a separate reason discussed in Section~\ref{sec:methodology-metric}.
 
 \paragraph{Folding shared terminology into text.} Nodes whose only role is to
-carry a value or a code -- \texttt{Code}, \texttt{Unit}, \texttt{Quantity},
-\texttt{BodySite}, \texttt{ReferenceRange} -- are removed as nodes and their text
+carry a value or a code (\texttt{Code}, \texttt{Unit}, \texttt{Quantity},
+\texttt{BodySite} and \texttt{ReferenceRange}) are removed as nodes, their text
 composed into the description of the event that references them. This is what
 turns a four-node laboratory construct plus its satellites into one node carrying
 a sentence. Without it, the node a question is about carries a timestamp and
@@ -48,8 +43,8 @@ interpretability of connectivity: a path through a provenance hub carries no
 clinical meaning.
 
 \paragraph{Two text fields per node.} Each node is given an \emph{embedding text}
-and a \emph{display text}. The embedding text carries the semantic core -- what
-kind of measurement, which analyte -- and deliberately excludes the measured
+and a \emph{display text}. The embedding text carries the semantic core, meaning
+what kind of measurement and which analyte, and deliberately excludes the measured
 value and the timestamp, so that repeated measurements of one analyte share a
 single embedding. The display text carries everything, because an LLM answering
 from the subgraph needs the value. The split is what makes embedding a
@@ -58,10 +53,10 @@ the reason a text-scoring baseline must be given the embedding text and not the
 display text if the comparison is to be fair.
 
 \paragraph{Terminology resolution.} Codes are resolved against published
-catalogues to supply descriptions the graph lacks, in five tiers -- exact match,
-a different version of the same classification, the parent concept, the graph's
-own label, and nothing -- with the count of nodes answered by each tier reported
-alongside any result that depends on it. The design is a cross-walk rather than a
+catalogues to supply descriptions the graph lacks, across five tiers: exact
+match, a different version of the same classification, the parent concept, the
+graph's own label, and nothing. The count of nodes answered by each tier is
+reported alongside any result depending on it. The design is a cross-walk rather than a
 translation because a code is language-independent, which makes the operation
 deterministic and auditable, and because it can fill codes that have no label at
 all. Section~\ref{sec:results-terminology} reports what it recovers.
@@ -126,9 +121,9 @@ connected.
 PCST's size parameter is a cost per edge; the baselines' is a count $k$ or a hop
 number $h$. These are not commensurable, and plotting recall against ``the
 parameter'' would compare a cost with a count. Every comparison in this thesis is
-therefore made against a \emph{measured} size -- node count, or prompt characters
--- with each strategy swept across its own parameter range and the resulting
-points placed on a shared axis.
+therefore made against a \emph{measured} size, either node count or prompt
+characters, with each strategy swept across its own parameter range and the
+resulting points placed on a shared axis.
 
 Two consequences must be stated rather than assumed. First, a strategy that
 returns more nodes will usually recall more, so a recall figure is meaningless

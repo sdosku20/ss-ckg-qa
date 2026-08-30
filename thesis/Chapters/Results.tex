@@ -3,16 +3,12 @@
 \chapter{Results} \label{chapter:results}
 % ============================================================
 
-% EDITORIAL NOTE. Every number in this chapter is either measured on the live
-% clinical graph or produced by a script in experiments/, and each section names
-% which. Section 6.1 draws the line between the two and states plainly what has
-% NOT been measured yet, so no later section has to hedge. Do not add a number
-% here without a command that reproduces it.
+% Do not add a number here without a command that reproduces it.
 
 \section{What Is Measured Here, and What Is Not} \label{sec:results-scope}
 
-Results in this chapter come from two sources, and conflating them would make
-the chapter worthless.
+The results below come from two sources, and conflating them would make the
+chapter worthless.
 
 \paragraph{Measurements on the clinical graph.} Sections~\ref{sec:results-graph}
 and~\ref{sec:results-preparation} report properties of the live STCS graph and of
@@ -22,7 +18,7 @@ infrastructure. They are facts about the data.
 \paragraph{Experiments on a shape-matched replica.}
 Sections~\ref{sec:results-dilution} to~\ref{sec:results-candidates} report
 experiments run on a synthetic patient generated to reproduce the measured
-structure of one real patient exactly -- the same node and edge counts, the same
+structure of one real patient exactly, with the same node and edge counts, the same
 label distribution, the same ratio of nodes to distinct texts, the same
 proportion of diagnoses lacking a description. The generator emits rows in the
 shape the database returns and passes them through the same assembly code as the
@@ -31,9 +27,9 @@ imitation. Its \emph{content}, however, is invented: analyte names, drug names
 and diagnosis labels are drawn from synthetic vocabularies.
 
 The consequence is a strict limit on what these experiments can support. They are
-evidence about \emph{mechanism} -- whether a size parameter controls size,
+evidence about \emph{mechanism}, meaning whether a size parameter controls size,
 whether tie-breaking decides an outcome, whether resolving a code changes what can
-be retrieved -- because those depend on structure. They are not evidence about
+be retrieved, since those depend on structure. They are not evidence about
 clinical retrieval quality, which depends on content, and no recall figure from
 the replica should be read as an estimate of recall on the cohort.
 
@@ -156,7 +152,7 @@ roughly $49{,}400$ raw laboratory event nodes into $12{,}349$.
 
 Second, one prepared patient is $15{,}810$ nodes, about eleven times the average
 WebQSP sample of $1{,}371$ nodes on which G-Retriever was
-validated~\cite{he2024gretriever} -- and this is one patient of $1{,}197$. The
+validated~\cite{he2024gretriever}, and this is one patient of $1{,}197$. The
 narrowing step of Section~\ref{sec:results-candidates} is a consequence of this
 row, not a convenience.
 
@@ -173,7 +169,7 @@ relation types drive the effective edge cost towards zero, so that PCST returns
 its entire input. Running the published default configuration
 ($\texttt{topk}=3$, $\texttt{topk\_e}=5$, $c_e = 0.5$) on the shape-matched
 replica of patient \#0 returned \textbf{15{,}810 of 15{,}810 nodes and
-45{,}562 of 45{,}562 edges} -- the whole graph, for every question tested.
+45{,}562 of 45{,}562 edges}, which is the whole graph, for every question tested.
 
 The prediction is confirmed, and the remedy follows directly from the algebra
 rather than from tuning: setting $\texttt{topk\_e} = 0$ removes edge prizes
@@ -187,8 +183,8 @@ choice is an ablation switch rather than a hidden default.
 
 Table~\ref{tab:sweep} sweeps each family across its own size parameter on the
 full-size replica and reports the subgraph actually produced. Because the
-parameters are not the same quantity -- a cost against a count against a hop
-number -- the comparison is made on measured size, as
+parameters are not the same quantity, being a cost against a count against a
+hop number, the comparison is made on measured size, as
 Section~\ref{sec:methodology-comparability} requires.
 
 \begin{table}[t]
@@ -230,12 +226,12 @@ Four results, in decreasing order of how surprising they are.
 
 \paragraph{At equal size, connectivity contributed nothing.} At approximately
 eleven nodes, PCST, shortest paths, top-$k$ nodes with neighbours and KAPING all
-scored $0.164$ -- identically. On this graph, at the sizes PCST operates in, what
+scored $0.164$, identically. On this graph, at the sizes PCST operates in, what
 gets retrieved is decided by the similarity signal and not by the structural
 strategy. This is a direct partial answer to RQ2, and it is a negative one.
 
 \paragraph{Neighbourhood expansion has no usable middle.} BFS returns $7.7$ nodes
-at one hop and $15{,}334$ at two -- from $0.05\%$ of the graph to $97\%$ with no
+at one hop and $15{,}334$ at two, rising from $0.05\%$ of the graph to $97\%$ with no
 setting in between, because the dial is an integer. Top-$k$ nodes with
 neighbours behaves the same way once $k$ is large enough to catch a hub: $21.7$
 nodes at $k=10$, $2{,}244$ at $k=30$. The claim made in
@@ -248,8 +244,8 @@ from $8$ nodes to $11$ and then stopped. The reachable range is $8$--$11$ nodes:
 $c_e$ saturates in both directions, upward by Equation~\ref{eq:cost-adjustment}
 and downward because once every prized node is affordable there is nothing
 further to buy. The effective size dial in this regime is $\texttt{topk}$, not
-$c_e$, and a methodology that sweeps only $c_e$ -- as the published description
-suggests -- explores a narrow band and reports it as a curve.
+$c_e$, and a methodology that sweeps only $c_e$, as the published description
+suggests, explores a narrow band and reports it as a curve.
 
 \paragraph{Independent scoring returns disconnected results.} KAPING's output is
 disconnected for every $k \geq 100$, as the family's description predicts. It is
@@ -262,7 +258,7 @@ recall.
 Section~\ref{subsec:terminologies} argued that resolving codes to descriptions is
 a precondition for retrieval rather than preprocessing hygiene.
 Table~\ref{tab:terminology-gain} measures it, using questions that never quote
-the code they are looking for -- a question containing \texttt{N18.5} finds the
+the code they are looking for, since a question containing \texttt{N18.5} finds the
 \texttt{N18.5} node by string overlap and measures nothing.
 
 \begin{table}[t]
@@ -296,8 +292,9 @@ belongs to graph preparation and must not be reported as a retrieval result.
 
 A catalogue in the wrong language is worse than no catalogue: it replaced text
 that was already matching and took described diagnoses from $1.00$ to $0.00$.
-Whether this step helps or harms therefore depends on a fact about deployment --
-the language users write questions in -- that is not a detail to settle late.
+Whether this step helps or harms therefore depends on a fact about deployment,
+namely the language users write their questions in, and that is not a detail to
+settle late.
 
 Adding parent-concept words, the simplest form of the schema signal of RQ3,
 changed nothing here. The synthetic vocabulary gives leaf labels that already
@@ -337,7 +334,7 @@ difference between a parameter sweep that completes and one that does not.
 Top-$n$ similarity does not control size. The most similar nodes are not adjacent
 to one another, so the induced region is nearly edgeless, PCST is handed isolated
 fragments and returns all of them: $220.6$ nodes rather than $11$. Its higher
-recall is a larger subgraph, not a better one -- the clearest illustration in
+recall is a larger subgraph, not a better one. This is the clearest illustration in
 this thesis of why recall must always be read beside a size.
 
 The finding that was not anticipated is in the ceiling column when broken out by
@@ -355,8 +352,9 @@ result is reported. Until one is, the chapter establishes how the method behaves
 on this data and not whether it is preferable to what is deployed.
 
 \paragraph{The encoder is a placeholder.} Every experiment uses a deterministic
-bag-of-words encoder. That is appropriate for structural questions -- a size dial
-either controls size or does not, whatever the embedding -- and inappropriate for
+bag-of-words encoder. That is appropriate for structural questions, since a size
+dial either controls size or does not, whatever the embedding, and inappropriate
+for
 anything semantic. In particular the cross-language result of
 Section~\ref{sec:results-terminology} shows that a \emph{lexical} encoder cannot
 bridge a language gap; a multilingual sentence encoder might, and that experiment
