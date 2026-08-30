@@ -90,6 +90,41 @@ class PatientProfile:
     def nodes_per_distinct_text(self) -> float:
         return self.nodes / max(self.distinct_embed_texts, 1)
 
+    def scaled(self, factor: float, label: str = "") -> "PatientProfile":
+        """The same patient shape at a different size.
+
+        Ratios are preserved and absolute size is not, which is the point: real
+        patients differ in how much data they have far more than in how it is
+        arranged. Two replica draws from the same profile differ only in
+        content, so they produce identical answer-set sizes and therefore
+        identical recall; a cohort that varies only in content cannot show the
+        cross-patient variance a multi-patient evaluation exists to measure.
+
+        ``nodes`` and ``edges`` are scaled as targets. The generator decides the
+        real counts, and ``describe_fidelity`` reports any gap rather than
+        hiding it.
+        """
+        if factor <= 0:
+            raise ValueError(f"factor must be positive, got {factor}")
+
+        def take(value: int) -> int:
+            return max(1, int(round(value * factor)))
+
+        return dataclasses.replace(
+            self,
+            label=label or f"{self.label}-x{factor:g}",
+            lab_observations=take(self.lab_observations),
+            analytes=take(self.analytes),
+            diagnoses=take(self.diagnoses),
+            unnamed_diagnoses=min(take(self.unnamed_diagnoses), take(self.diagnoses)),
+            drug_administrations=take(self.drug_administrations),
+            drugs=take(self.drugs),
+            cases=take(self.cases),
+            distinct_embed_texts=take(self.distinct_embed_texts),
+            nodes=take(self.nodes),
+            edges=take(self.edges),
+        )
+
 
 # Measured 20 August 2026 on the CHIL server with
 #   python -m ikgqa.data.sphn --patient 0

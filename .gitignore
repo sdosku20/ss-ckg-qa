@@ -8,6 +8,12 @@
 secrets.*
 credentials.*
 
+# The gold question set. Its questions name real patients and its answers are
+# real node keys, so the file is governed data even though the tooling that
+# reads it is not. Keep it on BioMedIT; commit ikgqa.eval.goldset instead, and
+# the synthetic fixtures in tests/.
+/gold/
+
 # Any extract from the clinical graph. Governed data stays on BioMedIT.
 # Leading slash = repo root only. Without it, "data/" also matched
 # src/ikgqa/data/, which silently kept the SPHN loader out of version control.

@@ -412,12 +412,19 @@ class _Builder:
         self.display: List[str] = []
         self.labels: List[str] = []
         self.by_key: Dict[Tuple[str, Any], int] = {}
+        # Keys in node order, so the stable identifier survives into the graph.
+        # Node *indices* are assigned by iteration order and change whenever the
+        # loader, the limit or the database does; a gold answer recorded as an
+        # index would silently point at a different node on the next load. The
+        # key is derived from the SPHN uid and does not move.
+        self.keys: List[str] = []
         self.edges: List[Tuple[int, str, int]] = []
 
     def node(self, key: Tuple[str, Any], label: str, embed: str, display: str) -> int:
         """Add a node, or return the existing id if this key was seen before."""
         if key in self.by_key:
             return self.by_key[key]
+        self.keys.append(f"{key[0]}:{key[1]}")
         idx = len(self.embed)
         self.embed.append(embed)
         self.display.append(display)
@@ -575,6 +582,7 @@ def build_patient_graph(
     nodes_df = pd.DataFrame(
         {
             "node_id": np.arange(len(b.embed)),
+            "node_key": b.keys,
             "node_attr": b.display,
             "embed_attr": b.embed,
         }

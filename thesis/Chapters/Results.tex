@@ -281,6 +281,48 @@ nonetheless competitive on recall at matched size, which is worth stating plainl
 rather than burying: the connectivity guarantee is not, on this graph, buying
 recall.
 
+\section{Does the Convergence Survive More Than One Patient?} \label{sec:results-multipatient}
+
+Every result above comes from one graph, so the obvious objection is that it
+describes that graph. The evaluation was therefore repeated over ten replica
+patients scaled between $0.4$ and $1.2$ times the measured profile, spanning
+$6{,}325$ to $18{,}972$ nodes.
+
+\begin{table}[t]
+\centering
+\caption{Ten patients of differing size, three strategies, eighty scored
+questions. The mean is over patients, each counted once, so a large patient
+with many questions cannot dominate.}
+\label{tab:multipatient}
+\begin{tabular}{lccc}
+\toprule
+Strategy & Mean recall & SD across patients & Patients \\
+\midrule
+PCST                      & 0.1461 & 0.0081 & 10 \\
+PCST after seed expansion & 0.1461 & 0.0081 & 10 \\
+Top-$k$ triples (KAPING)  & 0.1461 & 0.0081 & 10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The three strategies agree to four decimal places on every patient, and the
+per-patient means range only from $0.1379$ to $0.1596$. The convergence reported
+in Section~\ref{sec:results-size} is therefore not a property of the patient it
+was first observed on. Whatever the graph size, the similarity signal decides
+what is retrieved.
+
+Two limits on this. The patients differ in size and in content but not in
+structural shape, since all are drawn from one measured profile, and the size
+distribution used was assumed rather than measured; what the $1{,}197$ real
+patients look like is a query that has not yet been run. A cohort whose shape
+genuinely varies could still behave differently.
+
+The run also exercised the failure path that a cohort-scale evaluation needs.
+An earlier configuration drove two patients past the replica's synthetic
+vocabulary; both were recorded with their reason and the remaining eight
+completed, which is the behaviour required of a run over $1{,}197$ patients
+where an abort partway through yields nothing.
+
 \section{Terminology Resolution} \label{sec:results-terminology}
 
 Section~\ref{subsec:terminologies} argued that resolving codes to descriptions is

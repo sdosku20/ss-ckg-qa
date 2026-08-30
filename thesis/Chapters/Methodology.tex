@@ -154,6 +154,54 @@ ground truth for a comparison against that same system would be circular; the
 gold set is what breaks the circle, which is why it is treated as a core artefact
 rather than a validation afterthought.
 
+\subsection{Recording a Gold Question} \label{sec:methodology-goldset}
+
+A gold question carries its text, the language it is written in, whether its
+answer is a set of entities or an aggregate, the patient it is scoped to, its
+answer entities, and who confirmed them on what date. Language is recorded
+rather than inferred because it decides both the encoder and the terminology
+catalogue, and Section~\ref{sec:results-terminology} shows what applying the
+wrong one costs.
+
+Answers are stored as \emph{stable keys} derived from the SPHN uid, never as
+node indices. An index is an artefact of the order in which the loader happened
+to walk the database, and it moves whenever the loader, a query limit or the
+data changes. An answer recorded as index $4{,}812$ would go on scoring after it
+had begun denoting a different node, and no error would be raised. Resolution
+against a graph therefore reports keys it cannot find instead of quietly
+skipping them, since a missing key means the loader no longer emits a node the
+gold set was built against, and silently scoring around it would understate
+every method equally and invisibly.
+
+Four conditions are refused outright, each corresponding to a way a question set
+measures something other than retrieval. An entity question with no answers
+scores zero against every method. An aggregate question that carries answers
+gets scored as though recall meant something for it. A question that contains
+the code it is looking for is answerable by string overlap alone; this defect
+was found in the planted-question generator, where it made PCST appear perfect.
+A question with no named validator has another system's output as its ground
+truth, which is the circularity the set exists to avoid, and is reported
+separately rather than rejected.
+
+\section{Evaluating Across Patients} \label{sec:methodology-multipatient}
+
+Retrieval is scoped to one patient, so a cohort result is an aggregate over
+per-patient runs rather than a single measurement. Three properties of that loop
+matter more than the retrieval it performs.
+
+Failures are outcomes. Loading a patient can fail for reasons unconnected to
+retrieval, and a run over $1{,}197$ patients that aborts on the fortieth has
+produced nothing. Each failure is caught, recorded with its reason, and reported
+as a count beside the results.
+
+Runs are resumable. Loading and encoding dominate the cost, so rows are appended
+as they are produced and finished patients are skipped on restart.
+
+Patients are averaged, not questions. Pooling every question into one mean lets
+a few large patients dominate and conceals the variance, which is itself a
+result. Each patient contributes one value to the cohort mean, and the standard
+deviation across patients is reported beside it.
+
 \section{SnapQuery as a Comparator} \label{sec:methodology-snapquery}
 
 SnapQuery returns rows, not a subgraph (Section~\ref{subsec:snapquery-background}).

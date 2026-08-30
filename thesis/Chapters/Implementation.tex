@@ -24,13 +24,14 @@ Module & Responsibility \\
 \texttt{ikgqa.encoders} & bag-of-words and sentence-transformer encoders \\
 \texttt{ikgqa.pcst} & the PCST algorithm and a verbatim copy of the published one \\
 \texttt{ikgqa.retrieval} & the five strategies, plus two-stage candidate generation \\
-\texttt{ikgqa.eval} & the metric, the parameter sweep, and curve extraction \\
+\texttt{ikgqa.eval} & the metric, the sweep, the gold set, the cohort loop, the figures \\
+\texttt{ikgqa.baselines} & the SnapQuery client, which is a service rather than a retriever \\
 \texttt{ikgqa.data} & the Neo4j loader, terminology resolution, the replica \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Two design decisions in Table~\ref{tab:modules} are load-bearing rather than
+Three design decisions in Table~\ref{tab:modules} are load-bearing rather than
 stylistic.
 
 The graph type validates its inputs when constructed: one embedding row per node,
@@ -43,7 +44,18 @@ Every retrieval strategy implements one interface and nothing else: given a grap
 and an embedded question, return node and edge identifiers. The strategies do
 not embed text, do not score themselves, and do not call a model. That narrowness
 is what allows the evaluation harness to treat them as interchangeable, which is
-the premise of the entire comparison.
+the premise of the entire comparison. SnapQuery is the exception and lives
+outside that package: it consumes a question in words and returns rows rather
+than a subgraph, so forcing it behind the retriever interface would hide the
+adaptation the comparison depends on instead of stating it.
+
+Nodes carry a stable key alongside their index. The key is derived from the SPHN
+uid and does not move; the index is assigned by whatever order the loader walked
+the database and moves whenever the loader, a limit or the data changes. Without
+a key there is nowhere to record a gold answer that survives a reload, and an
+answer recorded as an index would keep scoring while denoting a different node.
+This is the mechanism behind Section~\ref{sec:methodology-goldset}, and it costs
+one column.
 
 \section{Fidelity to the Published Implementation} \label{sec:implementation-fidelity}
 
