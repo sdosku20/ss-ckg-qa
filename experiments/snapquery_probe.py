@@ -37,6 +37,7 @@ import re
 import socket
 import sys
 import time
+import uuid
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -314,9 +315,11 @@ def main(argv=None) -> int:
     parser.add_argument("--endpoint", default="/chat/",
                         help="path to POST to (check --discover first)")
     parser.add_argument("--continue-endpoint", default="/chat/continue")
-    parser.add_argument("--field", default="message",
+    parser.add_argument("--field", default="query",
                         help="request field holding the user text")
     parser.add_argument("--session-field", default="session_id")
+    parser.add_argument("--timeout", type=float, default=300.0,
+                        help="seconds to wait; the agent writes Cypher with an LLM")
     parser.add_argument("--schema", action="store_true",
                         help="request and response fields, from the saved spec")
     parser.add_argument("--selftest", action="store_true", help="check the redactor offline")
@@ -343,17 +346,20 @@ def main(argv=None) -> int:
         report_schema(spec)
         return 0
 
-    text = args.ask or args.reply
-    if not text:
-        parser.error("give --discover, --ask, --reply or --selftest")
+    text = args.ask if args.ask is not None else args.reply
+    if text is None:
+        parser.error("give --discover, --schema, --ask, --reply or --selftest")
 
-    payload = {args.field: text}
-    if args.session:
-        payload[args.session_field] = args.session
-    path = args.continue_endpoint if args.reply else args.endpoint
+    # Both fields are required by the service, and session_id is client-issued:
+    # the caller invents it and the server keys its state off it. That is what
+    # lets an evaluation loop start a clean session per question rather than
+    # scraping a handle out of the previous response.
+    payload = {args.field: text, args.session_field: args.session or str(uuid.uuid4())}
+    path = args.continue_endpoint if args.reply is not None else args.endpoint
 
-    print(f"POST {args.base}{path}")
-    record = request(args.base + path, method="POST", payload=payload, token=args.token)
+    print(f"POST {args.base}{path}  session={payload[args.session_field]}")
+    record = request(args.base + path, method="POST", payload=payload,
+                     token=args.token, timeout=args.timeout)
     record["sent"] = payload
     raw, safe = save(record, "ask" if args.ask else "reply")
 

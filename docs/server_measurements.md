@@ -307,3 +307,33 @@ the thesis. Only the Basel graph is in scope here.
 
 `/home/gretriver_master_thesis/README.md` covers Neo4j access only and says
 nothing about SnapQuery.
+
+### The request contract, measured
+
+A first POST with a guessed field name returned `422`, and FastAPI's validation
+error named the fields it wanted. `POST /chat/` requires exactly two:
+
+| Field | Required | Note |
+|---|---|---|
+| `query` | yes | the user's question. **Not** `message` |
+| `session_id` | yes | **client-issued** -- the caller invents it |
+
+That `session_id` is required rather than server-issued is the most useful thing
+learned so far. There is no handshake and no handle to scrape out of a response:
+the client mints an identifier, the server keys its state off it, and an
+evaluation loop can therefore start a clean session per question and be certain
+no state leaks between them. Redis on 6379 is the plausible store.
+
+`message` is not a field at all. It appeared in the `422` body only because
+FastAPI echoes the whole rejected payload back under `input`.
+
+```bash
+# SERVER -- one turn, recorded and redacted
+SESSION=$(python3 -c 'import uuid; print(uuid.uuid4())')
+python3 ~/snapquery_probe.py --field query --session "$SESSION" --ask "..."
+```
+
+Still unknown, and only a successful POST can say: whether authentication is
+required, what the response contains, whether slot filling can be answered
+programmatically, and -- the one that decides how much work the harness is --
+**whether the result rows carry node identity or only values**.
