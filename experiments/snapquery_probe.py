@@ -60,10 +60,16 @@ PROBE_PATHS = (
 
 # Keys whose values describe the protocol rather than the patient. Everything
 # else is masked. Kept deliberately short: when in doubt, a value is data.
+#
+# "loc" and "msg" are here because of a real failure: a 422 names the fields it
+# wanted in "loc", and masking those turned the single most useful reply the
+# service can give -- here is the field you got wrong -- into "<str len=4>".
+# A validation error is about the request, which we wrote, not about a patient.
 STRUCTURAL_KEYS = frozenset({
     "status", "state", "step", "role", "type", "action", "next_action",
     "finished", "done", "complete", "requires_confirmation", "confirmed",
     "model", "tool", "tool_name", "node", "phase", "kind", "event",
+    "loc", "msg",
 })
 
 # Keys holding a generated database query. Worth keeping -- it is the clearest
@@ -89,6 +95,10 @@ def redact(value, key: str = ""):
     if isinstance(value, dict):
         return {k: redact(v, k) for k, v in value.items()}
     if isinstance(value, list):
+        # A structural list is short and is itself the message -- ["body",
+        # "center_id"] means nothing if only its first element survives.
+        if key in STRUCTURAL_KEYS and len(value) <= 8:
+            return [redact(item, key) for item in value]
         return {
             "__list_len__": len(value),
             "__sample__": redact(value[0], key) if value else None,
@@ -274,8 +284,20 @@ def selftest() -> int:
     assert safe["confirmed"] is False, "boolean was masked"
     assert safe["rows"]["__list_len__"] == 2, "row count was lost"
     assert "SubjectPseudoIdentifier" in flat, "query structure was lost"
+
+    # A 422 is the service telling us which field we got wrong. Masking that
+    # wastes the round trip, and it describes our own request, not a patient.
+    rejection = {"detail": [
+        {"type": "missing", "loc": ["body", "center_id"], "msg": "Field required",
+         "input": {"message": "which drugs..."}},
+    ]}
+    safe_rejection = redact(rejection)
+    named = safe_rejection["detail"]["__sample__"]["loc"]
+    assert named == ["body", "center_id"], f"validation error lost the field name: {named}"
+    assert "which drugs" not in json.dumps(safe_rejection), "echoed input survived"
+
     print(json.dumps(safe, indent=2))
-    print("\nselftest OK: values masked, keys and query structure kept")
+    print("\nselftest OK: values masked, keys, query structure and 422 fields kept")
     return 0
 
 
