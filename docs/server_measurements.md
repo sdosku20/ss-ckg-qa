@@ -385,6 +385,55 @@ problem measured in §3 rather than a retrieval problem. Questions for the gold
 set should either name the codes or accept that both systems are being scored on
 their code handling.
 
-Still unknown: whether `/chat/continue` accepts an empty `query`, and -- the one
-that decides how much work the harness is -- **whether the result rows carry node
-identity or only values**.
+### Why the exchange fails: the planner model was swapped
+
+Port 8001 is a vLLM OpenAI-compatible server -- the planner. Measured
+30 August 2026:
+
+```bash
+# SERVER
+curl -s -m 10 http://localhost:8001/v1/models
+```
+
+| Property | Value |
+|---|---|
+| model | `/data/llm_models/Qwen3.8-27B-FP8` |
+| served by | vLLM |
+| `max_model_len` | **8,192** |
+
+The architecture document describes the planner as Qwen2.5-14B-Instruct. It is
+not: it is a Qwen3 reasoning model, which explains both symptoms exactly.
+
+1. Qwen3 emits `<think>...</think>` reasoning blocks. That is the `</think>`
+   appearing in `answer` with no opening tag.
+2. Its tool calls came back as `<function=name><parameter=name>` -- the
+   Qwen3-Coder XML convention -- rather than JSON inside `<tool_call>`, which is
+   the Hermes-style format a Qwen2.5 deployment would emit and a parser written
+   for it would expect.
+
+So the backend cannot parse its own model's tool calls, nothing executes, and
+`/chat/continue` raises rather than advancing. **This is a deployment regression
+on this host, not a usage error**, and it is not fixable from the client side.
+It needs the SnapQuery maintainers.
+
+### The context budget is 8,192 tokens, and that is a thesis number
+
+`max_model_len` is 8,192 for the model that writes every Cypher query the
+comparator produces. The live database schema is embedded in its system prompt
+and its own reasoning is generated inside the same window, so the budget
+available to retrieved content is well under 8,192.
+
+Against the measured patient in §4: 45,562 edges at roughly ten tokens per
+serialised triple is on the order of 4.5x10^5 tokens for one patient. **Under 1%
+of a single patient's prepared graph can be placed in front of this model at
+once**, and that is the whole patient, not the cohort.
+
+This converts the context-window argument in Chapter 1 from a general claim
+about large language models into a measured property of the deployed system the
+thesis compares against. The ten-tokens-per-triple figure is an estimate and
+should be replaced with a tokenizer count -- port 8001 exposes `/tokenize`, so
+it can be measured exactly on the real serialisation.
+
+Still unknown: **whether the result rows carry node identity or only values**.
+This cannot be answered until the deployment is repaired, and it is the one
+remaining fact that changes how much work the comparison is.

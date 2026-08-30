@@ -57,7 +57,13 @@ failing to outperform it is a more informative result.
 Passing the whole graph to the model is not an option. Serialising a graph into
 text is straightforward in principle, but LLM context windows are finite and a
 hospital-scale graph produces far more text than any current model can read at
-once, at a cost in time and compute that would be impractical regardless. So
+once, at a cost in time and compute that would be impractical regardless. The
+limit is not hypothetical here. The planner model deployed behind the comparator
+studied in this thesis serves a context of 8{,}192 tokens, and the live database
+schema and the agent's own reasoning are generated inside that same window. One
+prepared patient graph, at 45{,}562 edges and on the order of ten tokens per
+serialised triple, comes to roughly $4.5 \times 10^{5}$ tokens. Under one per
+cent of a \emph{single} patient can be placed in front of that model at once. So
 something has to select, and selection has two failure modes: retrieve too little
 and the facts an answer depends on are missing; retrieve too much and the result
 is expensive to process, hard to read, and diluted by material that competes with
