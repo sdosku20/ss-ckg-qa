@@ -25,6 +25,9 @@ dependencies = [
 # Enables the upstream-equivalence test (which runs the verbatim G-Retriever
 # code as an oracle) and lets the PCST module accept torch_geometric graphs.
 oracle = ["torch", "torch_geometric"]
+# Figures are built from the committed CSVs in experiments/results, not during a
+# normal run, so plotting stays out of the default install.
+figures = ["matplotlib>=3.7"]
 # Real sentence embeddings. Not needed for development against toy graphs.
 embeddings = ["sentence-transformers"]
 # The clinical graph backend.
