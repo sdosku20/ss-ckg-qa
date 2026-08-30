@@ -256,10 +256,21 @@ def show_last() -> int:
         return 1
 
     latest = max(files, key=lambda p: p.stat().st_mtime)
-    body = json.loads(latest.read_text(encoding="utf-8")).get("json", {})
-    rows = body.get("data")
+    record = json.loads(latest.read_text(encoding="utf-8"))
 
+    # A 500 comes back as the plain text "Internal Server Error", which is not
+    # JSON and so is recorded under "text". Looking only under "json" reported
+    # an empty exchange and hid the failure.
+    body = record.get("json")
+    if not isinstance(body, dict):
+        print(f"file   : {latest.name}")
+        print(f"HTTP   : {record.get('status')} in {record.get('seconds')}s")
+        print(f"body   : {record.get('text') or body or record.get('error')}")
+        return 0
+
+    rows = body.get("data")
     print(f"file   : {latest.name}")
+    print(f"HTTP   : {record.get('status')} in {record.get('seconds')}s")
     print(f"status : {body.get('status')}")
     print(f"cypher : {body.get('cypher')}")
     print(f"rows   : {None if rows is None else len(rows)}")
@@ -399,7 +410,13 @@ def main(argv=None) -> int:
     # the caller invents it and the server keys its state off it. That is what
     # lets an evaluation loop start a clean session per question rather than
     # scraping a handle out of the previous response.
-    payload = {args.field: text, args.session_field: args.session or str(uuid.uuid4())}
+    # The two endpoints take different bodies, and the spec is explicit about
+    # it: /chat/ requires query and session_id, /chat/continue requires only
+    # session_id, because it advances the agent's own reasoning rather than
+    # carrying anything from the user.
+    payload = {args.session_field: args.session or str(uuid.uuid4())}
+    if args.reply is None:
+        payload[args.field] = text
     path = args.continue_endpoint if args.reply is not None else args.endpoint
 
     print(f"POST {args.base}{path}  session={payload[args.session_field]}")
