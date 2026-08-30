@@ -237,6 +237,46 @@ def report_schema(spec: dict) -> None:
                     show_schema(sch, defs)
 
 
+def show_last() -> int:
+    """Print the most recent recorded exchange, on the server, unredacted.
+
+    Sorted by modification time rather than by name: a hand-written file called
+    manual-ask.json sorts after a timestamped one and silently becomes "the
+    latest", which cost a confusing KeyError once already.
+
+    The answer text is printed in full because reading it is the whole point of
+    being on the server. Result rows are printed as column names and types only
+    -- that is what the harness needs, and the values are governed data.
+    """
+    raw = Path.home() / "snapquery" / "raw"
+    files = [p for p in raw.glob("*-ask.json") if p.name[:1].isdigit()]
+    files += [p for p in raw.glob("*-reply.json") if p.name[:1].isdigit()]
+    if not files:
+        print(f"nothing recorded under {raw}")
+        return 1
+
+    latest = max(files, key=lambda p: p.stat().st_mtime)
+    body = json.loads(latest.read_text(encoding="utf-8")).get("json", {})
+    rows = body.get("data")
+
+    print(f"file   : {latest.name}")
+    print(f"status : {body.get('status')}")
+    print(f"cypher : {body.get('cypher')}")
+    print(f"rows   : {None if rows is None else len(rows)}")
+    print("---- answer ----")
+    print(body.get("answer"))
+
+    if rows:
+        print("\n---- columns of the first row (names and types, no values) ----")
+        first = rows[0]
+        if isinstance(first, dict):
+            for key, value in first.items():
+                print(f"  {key}: {type(value).__name__}")
+        else:
+            print(f"  row is a {type(first).__name__}, not a mapping")
+    return 0
+
+
 def latest_discovery() -> dict:
     """The most recent saved discovery, so the spec need not be fetched twice."""
     files = sorted((Path.home() / "snapquery" / "raw").glob("*-discover.json"))
@@ -322,11 +362,16 @@ def main(argv=None) -> int:
                         help="seconds to wait; the agent writes Cypher with an LLM")
     parser.add_argument("--schema", action="store_true",
                         help="request and response fields, from the saved spec")
+    parser.add_argument("--last", action="store_true",
+                        help="print the most recent recorded exchange (server only)")
     parser.add_argument("--selftest", action="store_true", help="check the redactor offline")
     args = parser.parse_args(argv)
 
     if args.selftest:
         return selftest()
+
+    if args.last:
+        return show_last()
 
     if args.discover:
         print(f"probing {args.base}")
