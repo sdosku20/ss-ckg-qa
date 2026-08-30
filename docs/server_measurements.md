@@ -255,8 +255,55 @@ Still outstanding:
    evaluation is per patient: minimum, median and maximum node counts across the
    1,197. This decides whether one graph per question is even feasible.
 3. **ATC, UCUM and SNOMED description coverage**, to complete §3.
-4. **Does SnapQuery respond on port 8002**, and what does one full exchange look
-   like end to end? Nothing about the baseline harness can be finished until one
-   real response has been observed.
+4. **What does one full SnapQuery exchange look like end to end?** The service is
+   confirmed reachable (§7); what remains is a complete recorded exchange, from
+   question through slot filling and confirmation to executed query and rows.
 5. **Confirm the loader's label coverage** (the omissions table in §2) with the
    data owners.
+
+---
+
+## 7. SnapQuery, first contact — 30 August 2026
+
+The port and endpoints had until now been copied from an architecture document
+and never verified. They are correct.
+
+```bash
+# SERVER
+python3 ~/snapquery_probe.py --discover
+```
+
+| Path | Status | Reading |
+|---|---|---|
+| `/` | 404 | no root route; the service is mounted at its endpoints only |
+| `/docs` | 200 | Swagger UI, so this is FastAPI |
+| `/openapi.json` | 200 | machine-readable contract available |
+| `/health`, `/healthz` | 404 | no health endpoint under either common name |
+| `/chat/` | 405 | route exists, GET not allowed — POST only |
+| `/chat/continue` | 405 | same |
+| `/api/chat/`, `/v1/chat/` | 404 | not versioned or prefixed |
+
+Two endpoints are declared, matching the architecture document exactly:
+
+```
+POST /chat/           Start or continue chat with snapquer
+POST /chat/continue   Continue snapquer's reasoning without new input
+```
+
+The distinction between them matters for the harness: `/chat/` carries new user
+input, `/chat/continue` advances the agent's own reasoning **without** any. That
+implies the LangGraph agent can yield control mid-run and be resumed, which is
+what a confirmation gate looks like from outside.
+
+Nothing here says whether authentication is required: a 405 is decided at
+routing, before any auth dependency runs, and `/docs` being open says only that
+the docs are open. The first POST settles it.
+
+Also confirmed on the same session: the listening ports are 8001, 8002, 8080,
+5432 (PostgreSQL, the tabular path), 6379 (Redis, plausibly the session store),
+7474/7475/7476 and 7687/7688/7689 — three Neo4j instances on consecutive ports,
+consistent with the three centers (Basel, Bern, Lausanne) described in §2.7.4 of
+the thesis. Only the Basel graph is in scope here.
+
+`/home/gretriver_master_thesis/README.md` covers Neo4j access only and says
+nothing about SnapQuery.

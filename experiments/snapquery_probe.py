@@ -183,6 +183,57 @@ def find_session_ids(value, key: str = "", found=None) -> dict:
     return found
 
 
+def show_schema(schema, defs: dict, indent: str = "   ", depth: int = 0) -> None:
+    """Print one OpenAPI schema's fields, resolving $ref against components."""
+    if depth > 3 or not isinstance(schema, dict):
+        return
+    if "$ref" in schema:
+        show_schema(defs.get(schema["$ref"].split("/")[-1], {}), defs, indent, depth)
+        return
+    required = set(schema.get("required", []))
+    for name, prop in (schema.get("properties") or {}).items():
+        kind = prop.get("type") or prop.get("$ref", "").split("/")[-1] or "any"
+        if "anyOf" in prop:
+            kind = "|".join(
+                a.get("type", a.get("$ref", "").split("/")[-1]) for a in prop["anyOf"]
+            )
+        print(f"{indent}{'*' if name in required else ' '} {name}: {kind}")
+        if "$ref" in prop or prop.get("items"):
+            show_schema(prop.get("items") or prop, defs, indent + "    ", depth + 1)
+
+
+def report_schema(spec: dict) -> None:
+    """What the service says it accepts and returns, per endpoint.
+
+    Worth reading before sending anything: it names the request fields, which
+    otherwise have to be guessed one 422 at a time.
+    """
+    defs = spec.get("components", {}).get("schemas", {})
+    for route, ops in sorted(spec.get("paths", {}).items()):
+        for method, op in ops.items():
+            if method.lower() not in ("get", "post", "put", "patch", "delete"):
+                continue
+            print(f"\n=== {method.upper()} {route} ===")
+            body = (op.get("requestBody", {}).get("content", {})
+                    .get("application/json", {}).get("schema"))
+            if body:
+                print(" request:")
+                show_schema(body, defs)
+            for code, resp in (op.get("responses") or {}).items():
+                sch = resp.get("content", {}).get("application/json", {}).get("schema")
+                if sch:
+                    print(f" response {code}:")
+                    show_schema(sch, defs)
+
+
+def latest_discovery() -> dict:
+    """The most recent saved discovery, so the spec need not be fetched twice."""
+    files = sorted((Path.home() / "snapquery" / "raw").glob("*-discover.json"))
+    if not files:
+        return {}
+    return json.loads(files[-1].read_text(encoding="utf-8")).get("openapi", {})
+
+
 def outdir() -> Path:
     root = Path.home() / "snapquery"
     (root / "raw").mkdir(parents=True, exist_ok=True)
@@ -244,6 +295,8 @@ def main(argv=None) -> int:
     parser.add_argument("--field", default="message",
                         help="request field holding the user text")
     parser.add_argument("--session-field", default="session_id")
+    parser.add_argument("--schema", action="store_true",
+                        help="request and response fields, from the saved spec")
     parser.add_argument("--selftest", action="store_true", help="check the redactor offline")
     args = parser.parse_args(argv)
 
@@ -254,8 +307,18 @@ def main(argv=None) -> int:
         print(f"probing {args.base}")
         record = discover(args.base, args.token)
         raw, safe = save(record, "discover")
+        if record.get("openapi"):
+            report_schema(record["openapi"])
         print(f"\nraw  (server only): {raw}")
         print(f"safe (copyable)   : {safe}")
+        return 0
+
+    if args.schema:
+        spec = latest_discovery()
+        if not spec:
+            print("no saved spec -- run --discover first")
+            return 1
+        report_schema(spec)
         return 0
 
     text = args.ask or args.reply
