@@ -333,7 +333,58 @@ SESSION=$(python3 -c 'import uuid; print(uuid.uuid4())')
 python3 ~/snapquery_probe.py --field query --session "$SESSION" --ask "..."
 ```
 
-Still unknown, and only a successful POST can say: whether authentication is
-required, what the response contains, whether slot filling can be answered
-programmatically, and -- the one that decides how much work the harness is --
-**whether the result rows carry node identity or only values**.
+### The response contract, measured
+
+First accepted POST, 30 August 2026. No token was sent and the reply was `200`,
+so **the service requires no authentication** from the server itself.
+
+| Field | Type on the first turn | Note |
+|---|---|---|
+| `answer` | string, 975-2986 chars | the model's text |
+| `data` | `null` | result rows, when a query has run |
+| `cypher` | `null` | the generated query, when one has been written |
+| `status` | `"ok"` | |
+
+Turn latency: 5.8 s, 8.3 s, 10.4 s, 16.7 s across four turns. A 50-question gold
+set at three turns each is therefore around 20 minutes of wall clock, so the
+evaluation loop is comfortably feasible.
+
+### `/chat/` returns an unexecuted tool call; `/chat/continue` is not optional
+
+The `answer` on the first turn contained the planner model's raw chain of thought
+followed by a verbatim, unexecuted tool call in Qwen/Hermes format:
+
+```
+</think>
+<tool_call>
+<function=snapquery_schema_lookup>
+<parameter=user_request>...</parameter>
+</function>
+</tool_call>
+```
+
+So `POST /chat/` runs the agent only until it wants a tool, then returns. The
+client is expected to call `POST /chat/continue` -- "continue snapquer's
+reasoning without new input" -- to execute it and advance. Sending further user
+text to `/chat/` instead interrupts the tool call and produces more of the same
+reasoning: measured, 2,986 characters of it.
+
+This is the single most important thing about driving the service, and it is not
+inferable from the endpoint list alone. It also means a harness turn is not one
+HTTP call but a loop: `/chat/` once, then `/chat/continue` until `cypher` and
+`data` come back non-null.
+
+### The cohort is not in the schema
+
+Unprompted, the planner observed: *"We have no explicit Transplant
+node/relationship in schema!"* and proposed deriving the cohort from
+`BilledDiagnosis` codes. This is correct against the label table in §2, and it
+matters for the gold set: a question phrased around "kidney transplant patients"
+is really a question about ICD-10 codes, which is the terminology-resolution
+problem measured in §3 rather than a retrieval problem. Questions for the gold
+set should either name the codes or accept that both systems are being scored on
+their code handling.
+
+Still unknown: whether `/chat/continue` accepts an empty `query`, and -- the one
+that decides how much work the harness is -- **whether the result rows carry node
+identity or only values**.
