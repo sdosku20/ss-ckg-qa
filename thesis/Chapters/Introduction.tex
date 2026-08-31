@@ -3,12 +3,12 @@
 \chapter{Introduction} \label{chapter:introduction}
 % ============================================================
 
-A hospital knowledge graph and a large language model each supply what the other
-lacks. The graph holds clinical facts in a form that can be inspected, corrected
-and audited one edge at a time, but reaching those facts requires knowing a query
-language. The model removes that barrier while offering no guarantee about what
-it says. Joining them is appealing for precisely that reason: neither is a
-substitute for the other.
+A hospital knowledge graph and a large language model (LLM) each supply what the
+other lacks. The graph holds clinical facts in a form that can be inspected,
+corrected and audited one edge at a time, but reaching those facts requires
+knowing a query language. The model removes that barrier while offering no
+guarantee about what it says. Joining them is appealing for precisely that
+reason: neither is a substitute for the other.
 
 Whether the result is any good turns on a step that tends to receive little
 attention. Before an LLM can answer anything, something must choose which part of
@@ -24,17 +24,19 @@ one. G-Retriever~\cite{he2024gretriever} casts subgraph selection as a
 Prize-Collecting Steiner Tree (PCST) problem, so that relevance and subgraph size
 are traded off inside a single optimisation rather than by filtering afterwards,
 and it reports large gains on general textual graphs. Those gains were obtained
-on small open-domain benchmarks. On WebQSP each question arrives with a
+on small open-domain benchmarks. On WebQSP, a standard set of questions answered
+over the general-knowledge graph Freebase, each question arrives with a
 pre-extracted subgraph of its own, averaging 1{,}371 nodes. A hospital graph is a
 different kind of object, and Section~\ref{sec:problem-statement} sets out the
 respects in which it differs, every one of them measured during this project.
 
 Then there is the question of what the comparison is against. SnapQuery is no
 research baseline rebuilt for the occasion. It is a deployed service that
-clinicians and data managers at the STCS Data Center depend on, written by the
-people who maintain the graph and tuned against the questions its users actually
-ask. Outperforming it would mean considerably more than outperforming a paper
-baseline; failing to outperform it would be more informative still.
+clinicians and data managers at the Swiss Transplant Cohort Study (STCS) Data
+Center depend on, written by the people who maintain the graph and tuned against
+the questions its users actually ask. Outperforming it would mean considerably
+more than outperforming a paper baseline; failing to outperform it would be
+more informative still.
 
 \section{Problem Statement} \label{sec:problem-statement}
 
@@ -70,29 +72,51 @@ for one patient out of 1{,}197. Selecting over the whole graph for every questio
 is not merely expensive. It is structurally different from the published setting,
 where the candidate region had been fixed in advance and was small.
 
-\paragraph{Sparse and shared text.} Almost no node carries text of its own.
-Laboratory results account for 20{,}523{,}891 of the graph's nodes, or 95.3\%,
-because the schema represents one result as four separate event nodes, and those
-nodes are described only through the terminology codes they reference:
-4{,}832{,}744 laboratory tests resolve to just 544 distinct LOINC descriptions.
-Preparation does not dissolve the effect. One patient's 15{,}810 prepared nodes
-carry 614 distinct descriptions between them, about 26 nodes per description, so
-a similarity score can sort that patient's graph into at most 614 classes. It can
-tell which \emph{analyte} a question concerns, never which \emph{measurement}.
+\paragraph{Sparse and shared text.} Every method compared in this thesis decides
+what to retrieve by matching the words of a question against words attached to
+each node, so the amount of \emph{distinct} text in a graph limits how finely any
+of them can discriminate. This graph holds very little of it. For a node to carry
+text of its own would mean a description stored on that node and describing that
+particular event; here almost every node is described only indirectly, by
+referencing a shared code node that hundreds or thousands of other nodes
+reference as well.
+
+Laboratory results are the clearest case, and they account for 20{,}523{,}891 of
+the graph's nodes, or 95.3\%. The SPHN schema, the Swiss Personalized Health
+Network standard this graph follows, represents one result as four separate event
+nodes, none of which holds a description. The words come instead from a
+referenced code in LOINC~\cite{loinc}, the international vocabulary for
+laboratory tests. Counting distinct descriptions across the cohort showed that
+4{,}832{,}744 laboratory tests share just 544 of them between them.
+
+Graph preparation (Chapter~\ref{chapter:methodology}) folds those codes into the
+nodes referencing them, which helps without dissolving the effect: one patient's
+15{,}810 prepared nodes still carry only 614 distinct descriptions, roughly 26
+nodes per description. The consequence for this work is direct. A similarity
+score can divide that patient's graph into at most 614 groups and has no
+information whatever inside a group. It can identify which \emph{analyte} a
+question concerns, meaning which substance was measured, but never which of the
+sixty-odd measurements of that analyte is wanted. Every strategy compared here
+receives that same signal and therefore inherits the same ceiling, and
+Chapter~\ref{chapter:results} reports what happens as a result.
 
 \paragraph{Degenerate connectivity.} A handful of administrative nodes dominate
-the structure. There are 168 provenance nodes of average degree 69{,}525, and six
-anatomical-site nodes absorbing 3{,}454{,}881 edges between them. Any two nodes
-lie two or three hops apart through one of these, which leaves an unqualified
-connectivity requirement close to vacuous.
+the structure. There are 168 provenance nodes, which record which hospital system
+a record came from rather than anything clinical, of average degree 69{,}525, and
+six anatomical-site nodes absorbing 3{,}454{,}881 edges between them. Any two
+nodes lie two or three hops apart through one of these, which leaves an
+unqualified connectivity requirement close to vacuous.
 
-Independently of the graph, the relevance signal is itself only a proxy. Cosine
-similarity between a question and a node's text is not relevance, and terse
-clinical labels are not the open-domain prose most sentence encoders were trained
-on. A node can rank highly for the wrong reason, or rank poorly despite being
-exactly right, because it uses a clinically equivalent but differently worded
-term. A selection strategy has to stay useful under an imperfect signal, not only
-under a favourable graph.
+Independently of the graph, the relevance signal is itself only a proxy. The
+signal used throughout is cosine similarity: a \emph{sentence encoder}, a model
+trained to turn a piece of text into a vector such that texts with similar
+meanings get nearby vectors, is applied to the question and to each node's text,
+and the angle between the two vectors becomes the score. That score is not
+relevance, and terse clinical labels are not the open-domain prose most sentence
+encoders were trained on. A node can rank highly for the wrong reason, or rank
+poorly despite being exactly right, because it uses a clinically equivalent but
+differently worded term. A selection strategy has to stay useful under an
+imperfect signal, not only under a favourable graph.
 
 \section{Research Questions} \label{sec:research-objectives}
 
@@ -141,15 +165,31 @@ Query latency is deliberately excluded. It is a property of an implementation an
 a deployment rather than of a selection strategy, and including it would reward
 engineering effort instead of the retrieval behaviour under study.
 
-The graph is the Neo4j graph SnapQuery itself queries, scoped to the STCS
-transplant cohort and structured according to the SPHN schema~\cite{sphnschema}.
-That schema is public and versioned. The instance data is governed clinical data
-and remains on University Hospital Basel and BioMedIT infrastructure throughout,
-so development proceeds against the schema, against synthetic graphs reproducing
-its measured structure, and against the real data once access permits, with final
-validation on the real cohort.
+The graph is the one held in Neo4j, the graph database SnapQuery itself
+queries, scoped to the STCS transplant cohort and structured according to the
+SPHN schema~\cite{sphnschema}. That schema is public and versioned. The
+instance data is governed clinical data and remains on University Hospital
+Basel and BioMedIT infrastructure throughout, so development proceeds against
+the schema, against synthetic graphs reproducing its measured structure, and
+against the real data once access permits, with final validation on the real
+cohort.
 
 \section{Contributions} \label{sec:contributions}
+
+This section states what is new in this thesis and claimed as its own work,
+separating that from the published methods it builds on. It serves as a summary
+for a reader deciding what to read, and as a checklist against which the
+concluding chapter can be held.
+
+Two kinds of item appear. Some are artefacts: an implementation, a procedure, an
+evaluation protocol, a question set. Others are \emph{findings}, and it is worth
+saying why they belong here rather than only in the results. A property of a
+published method that its authors did not report, derived from their own
+definitions and then confirmed by measurement, is a result about the method
+rather than about this data, and it is the kind of thing another researcher would
+want to know before applying G-Retriever to a graph like this one. Each finding
+below therefore names both the chapter that derives it and the chapter that tests
+it, so that the claim can be checked rather than taken on trust.
 
 \begin{itemize}
 \item An implementation of PCST-based subgraph selection for an SPHN-structured

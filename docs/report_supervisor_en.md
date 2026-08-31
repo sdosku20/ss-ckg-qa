@@ -109,7 +109,7 @@ graphs. Any difference is a test failure.
 
 ---
 
-## 5. SnapQuery on CHIL — needs your attention
+## 5. SnapQuery on CHIL — needs your attention (Andi)
 
 We measured the service on 30 August. It is reachable on port 8002, needs no
 authentication from the server, and answers in 6 to 17 seconds per turn. The
@@ -137,7 +137,7 @@ works only one component changes. Until then the comparison cannot be run.
 
 ---
 
-## 6. What we need from you
+## 6. What we need from you (Andi)
 
 1. **Is the SnapQuery graph path expected to work on CHIL, and has the planner
    model changed?** This blocks the thesis's main comparison.

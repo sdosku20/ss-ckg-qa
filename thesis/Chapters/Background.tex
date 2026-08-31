@@ -199,10 +199,14 @@ al.~\cite{jin2023llmgraphsurvey}.
 \subsection{Curated Ontologies and Mined Knowledge Graphs} \label{subsec:curated-ontologies}
 
 Clinical and biomedical knowledge graphs are built from two main kinds of source.
-Curated ontologies such as SNOMED~CT~\cite{snomedct} and
-UMLS~\cite{bodenreider2004umls} encode expert-validated medical knowledge as
-structured hierarchies and relational networks, with well-typed nodes and edges
-that can generally be trusted for clinical applications. Automatically mined
+Curated ontologies encode expert-validated medical knowledge as structured
+hierarchies and relational networks, with well-typed nodes and edges that can
+generally be trusted for clinical applications. Two are used widely enough to
+name here: SNOMED~CT (Systematized Nomenclature of Medicine Clinical
+Terms)~\cite{snomedct}, a comprehensive clinical vocabulary whose concepts are
+arranged in explicit is-a relationships rather than a flat list, and the UMLS
+(Unified Medical Language System)~\cite{bodenreider2004umls}, which maps concepts
+from many such vocabularies onto one another. Automatically mined
 knowledge graphs, built from electronic health records~\cite{rotmensch2017learning},
 cover emerging or institution-specific knowledge but may contain noise, since
 they are extracted rather than curated.
@@ -295,13 +299,25 @@ place almost every pair of nodes within a few hops of one another.
 \subsection{Clinical Terminologies and the Multilingual Problem} \label{subsec:terminologies}
 
 SPHN does not invent a vocabulary of clinical concepts but reuses established
-terminologies, and in the graph studied here five of them appear together.
-Laboratory tests are coded with LOINC~\cite{loinc}, whose English descriptions
-are present for every one of the 544 distinct test codes in the cohort.
-Diagnoses are coded with ICD-10-GM, the German national modification of
-ICD-10~\cite{icd10}, versioned by year, and 2{,}921 distinct codes appear across
-thirteen annual versions. Drugs are coded with ATC~\cite{atc}, units with UCUM,
-and a small number of concepts with SNOMED~CT~\cite{snomedct}.
+\emph{terminologies}: published catalogues that assign a stable code to each
+clinical concept, so that the same test or diagnosis is written the same way in
+every hospital that adopts them. A node in the graph carries the code; the words
+belonging to that code live in the catalogue. Five such catalogues appear
+together in the graph studied here.
+
+Laboratory tests are coded with LOINC (Logical Observation Identifiers Names and
+Codes)~\cite{loinc}, the international standard for identifying laboratory
+measurements, whose English descriptions are present for every one of the 544
+distinct test codes in the cohort. Diagnoses are coded with ICD-10-GM, the German
+national modification of the World Health Organization's International
+Classification of Diseases, tenth revision~\cite{icd10}. It is versioned by year,
+and 2{,}921 distinct codes appear across thirteen annual versions. Drugs are
+coded with ATC (Anatomical Therapeutic Chemical)~\cite{atc}, a World Health
+Organization classification that groups a substance by the organ it acts on and
+its therapeutic properties. Units of measurement use UCUM (Unified Code for Units
+of Measure), a machine-readable notation in which, for instance, millimoles per
+litre is written \texttt{mmol/L}. A small number of concepts use
+SNOMED~CT, introduced in Section~\ref{subsec:curated-ontologies}.
 
 This mixture creates a problem that the general-domain literature does not have
 to confront, and it is easy to miss because it announces itself in no error
