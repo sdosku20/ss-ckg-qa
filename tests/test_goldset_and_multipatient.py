@@ -425,3 +425,34 @@ def test_a_nonpositive_factor_is_refused():
     from ikgqa.data.replica import PATIENT_0
     with pytest.raises(ValueError):
         PATIENT_0.scaled(0)
+
+
+# --- encodings a hand-edited file actually arrives in -----------------------
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "utf-16", "utf-16-le"])
+def test_a_gold_file_is_readable_whatever_windows_wrote_it_as(tmp_path, encoding):
+    # PowerShell's ">" writes UTF-16 with a BOM; Notepad and Excel write UTF-8
+    # with one. Insisting on plain UTF-8 fails on byte zero with a message that
+    # tells a clinician nothing.
+    path = tmp_path / "q.jsonl"
+    body = json.dumps(good().to_dict(), ensure_ascii=False) + "\n"
+    path.write_bytes(body.encode(encoding))
+
+    assert len(GoldSet.from_jsonl(path)) == 1
+
+
+def test_german_text_survives_a_utf16_round_trip(tmp_path):
+    path = tmp_path / "q.jsonl"
+    question = good(text="Grösse der Läsion?")
+    path.write_bytes((json.dumps(question.to_dict(), ensure_ascii=False) + "\n").encode("utf-16"))
+
+    assert GoldSet.from_jsonl(path).questions[0].text == "Grösse der Läsion?"
+
+
+def test_the_template_can_be_written_directly_as_utf8(tmp_path):
+    from ikgqa.eval.goldset import main
+
+    out = tmp_path / "template.jsonl"
+    assert main(["template", "--out", str(out)]) == 0
+    assert out.read_bytes()[:1] == b"{", "no BOM, no UTF-16"
+    assert len(GoldSet.from_jsonl(out)) == 2

@@ -60,6 +60,40 @@ FIELDS = ("qid", "text", "language", "kind", "patient", "answer_keys",
           "validated_by", "validated_on", "source", "notes", "skip_reason")
 
 
+def read_text(path) -> str:
+    """Read a text file whatever encoding Windows gave it.
+
+    This file is meant to be edited by hand, and on Windows that means it
+    arrives in one of several encodings without anyone choosing. PowerShell's
+    ``>`` redirection writes UTF-16 with a byte-order mark; Notepad and Excel
+    write UTF-8 with one. Insisting on plain UTF-8 turns each of those into a
+    ``UnicodeDecodeError`` on byte zero, which tells a clinician nothing about
+    what to do next.
+
+    ``utf-8-sig`` strips a UTF-8 BOM if present and is otherwise plain UTF-8;
+    the ``utf-16`` codec detects either endianness from its BOM. The BOM-less
+    UTF-16 variants are tried only when the bytes contain a null, because valid
+    UTF-8 text never does and a Latin-1 file could otherwise decode as UTF-16
+    into plausible-looking nonsense. ``cp1252`` is last and is a guess.
+    """
+    raw = pathlib.Path(path).read_bytes()
+
+    candidates = ["utf-8-sig", "utf-16"]
+    if b"\x00" in raw:
+        candidates += ["utf-16-le", "utf-16-be"]
+    candidates.append("cp1252")
+
+    for encoding in candidates:
+        try:
+            text = raw.decode(encoding)
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+        if "\x00" in text:
+            continue                # decoded, but not as text
+        return text
+    raise ValueError(f"{path}: cannot decode; save it as UTF-8 and try again")
+
+
 @dataclasses.dataclass(frozen=True)
 class Problem:
     """Something wrong with one question, or with the set as a whole."""
@@ -173,7 +207,7 @@ class GoldSet:
         its own line number.
         """
         questions = []
-        for number, line in enumerate(pathlib.Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        for number, line in enumerate(read_text(path).splitlines(), 1):
             line = line.strip()
             if not line or line.startswith("//"):
                 continue
@@ -336,9 +370,16 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Gold question set tooling.")
     parser.add_argument("action", choices=("check", "template"))
     parser.add_argument("path", nargs="?", default="gold/questions.jsonl")
+    parser.add_argument("--out", help="write the template here, in UTF-8")
     args = parser.parse_args(argv)
 
     if args.action == "template":
+        # Offered as a flag because redirecting stdout with PowerShell's ">"
+        # writes UTF-16, and a template that cannot be read back is not one.
+        if args.out:
+            GoldSet(tuple(TEMPLATE)).to_jsonl(args.out)
+            print(f"wrote {args.out} ({len(TEMPLATE)} example questions, UTF-8)")
+            return 0
         for question in TEMPLATE:
             print(json.dumps(question.to_dict(), ensure_ascii=False))
         return 0
