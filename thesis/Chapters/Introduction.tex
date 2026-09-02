@@ -129,11 +129,17 @@ effectively than SnapQuery on the same clinical questions, measured as
 constituting a correct answer that appear in the retrieved subgraph, reported
 against the size of that subgraph rather than as a single number?
 
-\item[RQ2] How much of any difference is attributable to the connectivity
-constraint itself, rather than to the underlying similarity scores? Internal
-ablations answer this by holding the similarity signal fixed and varying only how
-connectivity is handled: similarity-only top-$k$ selection, and breadth-first
-expansion from seed nodes.
+\item[RQ2] How much of any difference is attributable to the
+\emph{connectivity constraint} itself, rather than to the underlying similarity
+scores? The constraint is the requirement that the returned subgraph be
+connected, meaning every returned node is reachable from every other using only
+returned edges. It is what allows a node of no direct relevance to be retrieved
+because it lies on a path between two relevant ones, and it is the property that
+distinguishes PCST from selecting nodes independently. Internal ablations answer
+the question by holding the similarity signal fixed and varying only how
+connectivity is handled: similarity-only top-$k$ selection, which need not
+return a connected result, and breadth-first expansion from seed nodes, which is
+connected by construction.
 
 \item[RQ3] Does augmenting the PCST prize function with \emph{intent} signals
 (recognising that a question concerns a treatment, a laboratory value, or a
@@ -223,10 +229,13 @@ then measured in Chapter~\ref{chapter:results}:
 
 \item A terminology cross-walk that resolves codes to canonical descriptions in
 five reported tiers, rather than embedding whatever label the graph happens to
-carry. It moves diagnoses that no wording could retrieve from zero recall to
-0.80, identically for every retrieval strategy, which places it in graph
-preparation rather than in retrieval, and it reverses entirely when the
-catalogue's language differs from the question's.
+carry. On questions asking about a diagnosis that carries only a code, where the
+answer is a single node and answer-node recall is therefore either $0$ or $1$ per
+question, it moves the mean from $0.00$ to $0.80$: eight of ten such questions
+returned their answer node, against none beforehand. The gain is identical for
+every retrieval strategy, which places the step in graph preparation rather than
+in retrieval, and it reverses entirely when the catalogue's language differs from
+the question's.
 
 \item A candidate-generation stage that makes selection applicable at patient
 scale at no cost in recall, reported together with the \emph{ceiling} it imposes
