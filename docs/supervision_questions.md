@@ -94,11 +94,6 @@ A byte-identical copy of the published routine is kept as a test oracle; ours mu
 return the same nodes, edges and serialisation on curated and random graphs. 32
 tests, and any divergence fails.
 
-**10. Is it acceptable that RQ3 is conditional?**
-It is scoped optional in the preparation document, and RQ1–RQ2 stand alone. Worth
-volunteering: the negative RQ2 result makes RQ3 *more* interesting — if the
-similarity signal decides everything, the prize function is where to intervene.
-
 ---
 
 ## Chapter 2
@@ -134,6 +129,16 @@ family, named as excluded.
 
 ## Chapter 3
 
+**14b. How does PCST work?** (asked, and I could not answer it)
+Full treatment in [pcst_from_the_papers.md](pcst_from_the_papers.md). The three
+sentences: PCST minimises $c(T) + \pi(\bar T)$ — edges bought plus prizes
+forfeited — and that is the thesis's $F(S)$ maximisation offset by the constant
+total prize. Goemans-Williamson solves it primal-dually by growing a "moat" $y_C$
+around each cluster until either an edge constraint goes tight (merge the two
+clusters) or a cluster's moats reach its total prize (deactivate it), which is
+just the LP dual being built. Then a pruning pass removes branches that do not
+pay for themselves — that stage, not the growth, is what decides the exclusions.
+
 **15. Why rank prizes rather than similarity values?**
 Rank makes the prize scale independent of how tightly similarities cluster. The
 cost is that magnitude is discarded — best and second-best always differ by one
@@ -142,9 +147,10 @@ unit — which matters here because many nodes are genuinely tied.
 **16. Walk me through the virtual-node transformation.**
 Solvers take node prizes and edge costs, not edge prizes. If $p(e) \le c_e$,
 absorb it: cost becomes $c_e - p(e)$. If $p(e) > c_e$, that needs a negative
-cost, so insert a virtual node with prize $p(e) - c_e$ and split the edge into
-two of cost $c_e/2$. Both branches preserve the objective; the price is remapping
-virtual nodes back to edges when decoding.
+cost, so delete the edge and insert a virtual node of prize $p(e) - c_e$ joined
+to both endpoints by two **zero-cost** half-edges — buying it nets $p(e) - c_e$,
+matching the original. The price is remapping virtual nodes back to edges when
+decoding. Full derivation in [pcst_from_the_papers.md](pcst_from_the_papers.md) §7.
 
 **17. Where does $\gamma = 0.01$ come from?**
 The published implementation, not us. It caps per-edge cost just below the largest
