@@ -233,6 +233,24 @@ what G-Retriever passes and we reproduce it exactly. **Note for the thesis:
 `strong` is documented as never worse, so "why gw?" has only a reproduction
 answer, not a quality one.**
 
+**And the penalty is measurable, not hypothetical.** On the `six-b` instance in
+`experiments/pcst_by_hand.py`, holding everything fixed except A's prize:
+
+    A's prize   pruning='gw'          obj     pruning='strong'   obj
+        10      {A,B,C,D,E}          12.00    {A,B,C,E}         12.00
+         8      {A,B,C,D,E}          12.00    {C,E}             12.00
+         7      {A,B,C,D,E}          12.00    {C,E}             11.00   strong wins
+         6      {A,B,C,D,E}          12.00    {C,E}             10.00   strong wins
+         5      {A,B,C,D,E}          12.00    {C,E}              9.00   strong wins
+         4      {C,D,E}               8.00    {C,E}              8.00
+
+Reaching A from C costs 3 + 5 = 8, so the A-B branch stops paying for itself
+once A's prize drops below 8. `strong` cuts it there; `gw` keeps it all the way
+down to 5 and is worse by up to 3 on a six-node graph. This is JMP00's "at least
+as good as GW pruning" shown concretely, and it means our `gw` setting is a
+faithfulness choice that costs accuracy. Worth stating in Chapter 4 rather than
+being asked about it.
+
 ### Guarantees
 
 GW95 gives the **Lagrangian-preserving** bound
