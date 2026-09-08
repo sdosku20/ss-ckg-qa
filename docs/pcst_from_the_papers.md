@@ -338,6 +338,45 @@ so pruning cannot undo the closure. Second, cost collapse alone does not do it:
 zero-prize leaves at cost 10^-6 are still pruned. It is the **virtual nodes plus
 the closure**, not the small costs on their own.
 
+### 8a. Chapter 3 Prediction 1 derives the wrong route (fix needed)
+
+Step 1 above is how the thesis explains it, and it is not what the code does with
+the encoder we actually ran. Measured on the replica (`PATIENT_0_SMALL`, seed 0,
+question "lab result: creatinine", `topk_e=5`):
+
+    relations present   hasAdministrativeCase, hasDiagnosis, hasDrug,
+                        hasDrugAdministration, hasLabObservation, hasLabTest
+    edges                          4592
+    distinct edge cosines          [0.]          <-- every one exactly zero
+    distinct edge prizes           [0.00021777]  = 1/4592
+    cost_e 0.5  ->                 0.00021668
+    edges becoming virtual         4592 of 4592
+
+Why every cosine is exactly zero: the loader embeds relation names verbatim in
+camelCase (`sphn.py:491-552`), and `tokenize` treats `hasLabObservation` as one
+opaque word. No natural-language question ever contains that token, so no edge
+shares any vocabulary with any question.
+
+That means `compute_edge_prizes` sees **one** distinct value, 0.0, so `topk_e=5`
+is clamped to 1 tier whose value is 0.0 -- and NOTE-A fires: the membership test
+`prizes == 0.0` matches every edge that step 2 had just zeroed. All 4,592 edges
+collect the whole budget split evenly, 1/4592 each.
+
+So Prediction 1's conclusion holds (every edge becomes nearly free, the whole
+graph comes back) but two details in it are wrong for the run we report:
+
+- the route is the NOTE-A quirk, not a genuine large tie tier;
+- the magnitude is 1/(edges in the patient) = 2.2e-4, not k_e/4,883,809 = 1e-6.
+  The 1e-6 figure counts `hasCode` occurrences across the whole 21.5M-node graph,
+  but the retrieval runs on one prepared patient with 4,592 edges.
+
+**Action:** rewrite Prediction 1 to derive the NOTE-A route and quote 2.2e-4, or
+keep the tier-split derivation and say explicitly that it is the behaviour with a
+subword encoder (SentenceBERT would give camelCase non-zero similarities and
+would reach the tier path). Do not leave a derivation that the measurement does
+not follow. This is exactly the kind of gap a "where did that number come from"
+question exposes.
+
 Worth raising as a finding rather than defending. The closure step is what makes
 the returned subgraph connected and contextual, and it is also what makes the size
 dial fail.
