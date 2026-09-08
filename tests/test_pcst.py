@@ -458,17 +458,18 @@ def test_both_topk_zero_still_returns_a_connected_subgraph():
     assert len(r.selected_edges) == 0
 
 
-def test_prize_stages_work_without_pcst_fast_installed():
-    """The module degrades gracefully: only `solve_pcst` (and the sanity check
-    that guards it) actually needs the compiled solver. Everything up to
-    "build the problem instance" is pure numpy/pandas.
+def test_whole_pipeline_works_without_pcst_fast_installed():
+    """Nothing in the retrieval path needs the compiled solver any more.
 
-    This matters because pcst_fast has no official Windows build (its own
-    bioconda package lists linux-64 and osx-64 only), so someone setting up
-    this playground on native Windows may be without a working solver for a
-    while. They should still be able to read and run the prize logic.
+    `ikgqa.pcst.gw` implements Goemans-Williamson directly, so with pcst_fast
+    unavailable the *entire* pipeline still runs -- not just the prize stages.
+    Only an explicit `solver="pcst_fast"` should fail, and that path exists
+    solely to cross-check our own solver.
 
-    Simulated here by making the `pcst_fast` import fail, rather than actually
+    This used to assert the opposite (that retrieval raised) because the solver
+    was external. Keeping the test and inverting it records the change.
+
+    Simulated by making the `pcst_fast` import fail, rather than actually
     uninstalling the package, so the rest of the suite is unaffected.
     """
     import builtins
@@ -493,8 +494,16 @@ def test_prize_stages_work_without_pcst_fast_installed():
         inst = P.build_pcst_instance(kg.edge_index, n_prizes, e_prizes, cost, kg.graph.num_nodes)
         assert inst.num_virtual_nodes >= 0  # ran at all, that's the point
 
+        # The whole thing, end to end, with no compiled solver present.
+        result = P.retrieval_via_pcst_traced(kg.graph, q, kg.nodes_df, kg.edges_df)
+        assert len(result.selected_nodes) > 0
+        assert result.desc
+
+        # And the cross-check path is the only thing that needs the library.
         with pytest.raises(ImportError, match="pcst_fast is not installed"):
-            P.retrieval_via_pcst_traced(kg.graph, q, kg.nodes_df, kg.edges_df)
+            P.retrieval_via_pcst_traced(
+                kg.graph, q, kg.nodes_df, kg.edges_df, solver="pcst_fast"
+            )
     finally:
         builtins.__import__ = real_import
         importlib.reload(P)  # restore normal behaviour for every test after this one
@@ -552,6 +561,12 @@ def test_matches_official_implementation(name, question, topk, topk_e, cost_e):
     `ikgqa/pcst/reference.py` is an unmodified copy of that file. Both are handed
     the same PyG Data and the same query embedding; the textual descriptions and
     the returned tensors must match exactly.
+
+    The solver is pinned to `pcst_fast` on both sides on purpose. What this test
+    verifies is our *prize computation, virtual-node transform and decoding*
+    against the published code, so the solver has to be held fixed or it is not
+    a controlled comparison. Our own solver is validated separately, against
+    this same library, in `tests/test_gw.py`.
     """
     kg = T.ALL_GRAPHS[name]()
     data = _as_pyg(kg)
@@ -561,7 +576,14 @@ def test_matches_official_implementation(name, question, topk, topk_e, cost_e):
         data.clone(), q, kg.nodes_df, kg.edges_df, topk=topk, topk_e=topk_e, cost_e=cost_e
     )
     my_sub, my_desc = P.retrieval_via_pcst(
-        data.clone(), q, kg.nodes_df, kg.edges_df, topk=topk, topk_e=topk_e, cost_e=cost_e
+        data.clone(),
+        q,
+        kg.nodes_df,
+        kg.edges_df,
+        topk=topk,
+        topk_e=topk_e,
+        cost_e=cost_e,
+        solver="pcst_fast",
     )
 
     assert my_desc == ref_desc
@@ -575,6 +597,8 @@ def test_matches_official_implementation(name, question, topk, topk_e, cost_e):
 def test_matches_official_implementation_on_random_graphs(seed):
     """Same check on random 40-node graphs with a 6-relation vocabulary, so
     edge-similarity ties (the fiddliest part of the prize logic) are exercised.
+
+    Solver pinned to `pcst_fast` for the same reason as above.
     """
     kg = T.random_kg(seed=seed)
     data = _as_pyg(kg)
@@ -582,7 +606,9 @@ def test_matches_official_implementation_on_random_graphs(seed):
     q = torch.tensor(rng.standard_normal(kg.x.shape[1]), dtype=torch.float32)
 
     ref_sub, ref_desc = official(data.clone(), q, kg.nodes_df, kg.edges_df, topk=3, topk_e=5, cost_e=0.5)
-    my_sub, my_desc = P.retrieval_via_pcst(data.clone(), q, kg.nodes_df, kg.edges_df, topk=3, topk_e=5, cost_e=0.5)
+    my_sub, my_desc = P.retrieval_via_pcst(
+        data.clone(), q, kg.nodes_df, kg.edges_df, topk=3, topk_e=5, cost_e=0.5, solver="pcst_fast"
+    )
 
     assert my_desc == ref_desc
     assert torch.equal(my_sub.edge_index, ref_sub.edge_index)

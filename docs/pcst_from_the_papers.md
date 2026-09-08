@@ -14,8 +14,9 @@ four-node graph and then calls the real solver on the same instance.
 
 ## 1. What the five references are, and the order to read them
 
-They are not five views of one paper. They are the lineage of the algorithm our
-code calls, and each one fixes a specific shortcoming of the previous.
+They are not five views of one paper. They are the lineage of the algorithm we
+implemented in `ikgqa.pcst.gw` (section 10), and each one fixes a specific
+shortcoming of the previous.
 
 | # | Reference | What it contributes | Read it for |
 |---|---|---|---|
@@ -23,7 +24,7 @@ code calls, and each one fixes a specific shortcoming of the previous.
 | 2 | Goemans & Williamson, *A general approximation technique for constrained forest problems*, SIAM J. Comput. 24(2) (1995) 296-317 | The **primal-dual factor-2 algorithm**. This is the algorithm we run | The actual mechanism, the LP/dual pair, the analysis |
 | 3 | Goemans & Williamson, *The primal-dual method for approximation algorithms...* (Hochbaum, ed., 1997; the Waterloo PDF) | Textbook exposition of the same method, with the **moat** picture | Intuition. Read this *before* #2 if LP duality is rusty |
 | 4 | Johnson, Minkoff, Phillips, *The prize collecting Steiner tree problem: theory and practice*, SODA 2000, 760-769 | **Strong pruning** (exact DP on the growth-stage tree) and direct handling of the unrooted variant | Why there is a `pruning=` argument at all |
-| 5 | Hegde, Indyk, Schmidt, *A fast, adaptive variant of the GW scheme for PCST*, DIMACS 11th Impl. Challenge (2014) | `pcst_fast`. O(d*m*log n), keeps the factor-2 guarantee | **This is the binary our code calls** |
+| 5 | Hegde, Indyk, Schmidt, *A fast, adaptive variant of the GW scheme for PCST*, DIMACS 11th Impl. Challenge (2014) | `pcst_fast`. O(d*m*log n), keeps the factor-2 guarantee | The reference implementation we validate our own solver against (section 10) |
 
 Paper 1 solves an LP with the ellipsoid method (the separation problem is min-cut)
 and rounds: scale x-hat = (5/3) * x-bar, then set y-hat(i) = 1 exactly when
@@ -419,3 +420,73 @@ dial fail.
 12. Trace the whole-graph result from tie tiers to the final node set.
 
 If 1, 3, 5 and 12 are fluent, the rest is recoverable in the room.
+
+---
+
+## 10. Our own solver: `ikgqa.pcst.gw`
+
+Since 9 September 2026 the retrieval path calls no external solver. The
+Goemans-Williamson algorithm is implemented in `src/ikgqa/pcst/gw.py`, written
+against the papers listed in section 1. `pcst_fast` remains installed, but only
+as a cross-check.
+
+### What is implemented, and from where
+
+| part | source | file |
+|---|---|---|
+| objective `c(T) + pi(complement of T)` | Bienstock et al. 1993, section 4 | `gw.objective` |
+| moat-growing growth stage, both dual invariants | GW95 / Hegde et al. Algorithm 1 | `gw._growth` |
+| strong pruning (exact DP on the growth tree) | Johnson-Minkoff-Phillips 2000 | `gw._prune_strong` |
+| GW's own pruning rule | GW95 | `gw._prune_gw` |
+
+Deliberately **not** implemented: Hegde et al.'s dynamic edge splitting with
+sentinel nodes. That is a data-structure optimisation which changes no output,
+and leaving it out keeps the growth loop readable next to the pseudo-code.
+Cost of that choice, measured: O(n*m) instead of O(m log n), so 0.25 s at 2,000
+nodes against 2 ms for the C++ library. Two-stage retrieval caps the region at
+2,000 nodes, so it does not bind.
+
+### How it was validated
+
+Three findings from building it, all reproducible in `tests/test_gw.py`:
+
+1. **The growth stage is correct.** With strong pruning our answer matches
+   `pcst_fast` exactly on all twelve random 40-node graphs in the equivalence
+   test, and on all four whiteboard instances under both pruning modes.
+
+2. **Our reading of GW's pruning rule is weaker than theirs.** On those same
+   twelve graphs `_prune_gw` scored 1.1954 where `pcst_fast`'s `gw` scored
+   0.8108 (seed 0), and it was never better. Isolating growth from pruning is
+   what found this: `own-strong == pcst-strong == pcst-gw` on every seed, so the
+   growth forest was right and only the pruning rule was wrong. Rather than ship
+   a weaker reading of a published rule, `OWN_PRUNING = "strong"` is the default:
+   it comes from a named paper, it is exact on the tree, JMP00 prove it is never
+   worse than GW pruning, and here it reproduces `pcst_fast`'s answer exactly.
+
+3. **Optimality is unchanged.** On 250 instances small enough to enumerate,
+   ours and `pcst_fast` each reached the true optimum on 248 (99.2%). Remaining
+   differences go in both directions, which is the signature of tie-breaking
+   rather than a defect.
+
+### What this does to the equivalence claim
+
+The claim is now two precise claims instead of one loose one:
+
+* `tests/test_pcst.py` pins **both** sides to `pcst_fast` and asserts
+  byte-identity. What it verifies is our prize computation, virtual-node
+  transform and decoding against the published code -- the solver has to be held
+  fixed or it is not a controlled comparison.
+* `tests/test_gw.py` verifies the solver we wrote, against that same library and
+  against brute-force optimality.
+
+Say it that way round. "Everything except the solver is byte-identical to the
+published implementation, and the solver is our own, validated against the
+reference library and against exhaustive search" is stronger and more honest
+than a single unqualified equivalence claim.
+
+The one consequence to carry into Chapter 6: `strong` pruning is not what
+G-Retriever passes, so on an instance where the two rules disagree our subgraph
+can differ from the published pipeline's. Measured, it differs by being better
+or equal, never worse. Every result recorded in `docs/server_measurements.md`
+before this date used `pcst_fast` with `gw`, and F10-F20 should be re-run to
+confirm they are unchanged.

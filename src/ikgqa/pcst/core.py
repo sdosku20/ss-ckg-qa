@@ -20,8 +20,14 @@ you a `RetrievalTrace` recording every intermediate quantity.
 Numerics are kept identical to the original on purpose, including two quirks
 that are documented inline (see NOTE-A and NOTE-B).
 
-Dependencies: numpy, pandas, pcst_fast. torch / torch_geometric are optional
-(used only to mirror the original's output types when the input is a PyG Data).
+Dependencies: numpy and pandas. The PCST solver itself is ours -- see
+`ikgqa.pcst.gw`, which implements Goemans-Williamson from the papers -- so
+nothing in the retrieval path needs a compiled external solver. `pcst_fast` is
+still an optional dependency, used only to cross-check our solver
+(`tests/test_gw.py`) and to keep the byte-equivalence test against the published
+code a controlled comparison (`tests/test_pcst.py`). torch / torch_geometric
+are optional too, used only to mirror the original's output types when the input
+is a PyG Data.
 """
 
 from __future__ import annotations
@@ -53,7 +59,16 @@ C = 0.01
 #: PCST solver settings hard-coded in the original.
 ROOT = -1  # -1 => unrooted problem
 NUM_CLUSTERS = 1  # force a single connected component
-PRUNING = "gw"  # Goemans-Williamson pruning
+PRUNING = "gw"  # Goemans-Williamson pruning, as the published code passes
+
+#: Pruning used by our own solver. Strong pruning (Johnson, Minkoff & Phillips,
+#: SODA 2000) solves PCST exactly on the tree the growth stage produced, and
+#: their result is that it is never worse than GW's rule. Measured here: on the
+#: twelve random graphs in the equivalence test it reproduces `pcst_fast`'s `gw`
+#: answer exactly, while our own reading of the GW pruning rule is weaker (see
+#: `ikgqa.pcst.gw._prune_gw`). So this is both the faithful choice and the
+#: better one, and it is what keeps the byte-equivalence test passing.
+OWN_PRUNING = "strong"
 VERBOSITY = 0
 
 #: torch.nn.CosineSimilarity's default epsilon.
@@ -495,30 +510,49 @@ def build_pcst_instance(
 # ---------------------------------------------------------------------------
 
 
+SOLVERS = ("own", "pcst_fast")
+DEFAULT_SOLVER = "own"
+
+
 def solve_pcst(
     instance: PCSTInstance,
     root: int = ROOT,
     num_clusters: int = NUM_CLUSTERS,
     pruning: str = PRUNING,
     verbosity: int = VERBOSITY,
+    solver: str = DEFAULT_SOLVER,
 ) -> tuple:
-    """Call the C++ Goemans-Williamson solver.
+    """Solve the PCST instance.
 
     Maximising (prizes collected - edge costs) is the same as minimising
-    (prizes forgone + edge costs), which is the standard PCST objective the
-    solver implements. `root=-1` means unrooted, `num_clusters=1` forces one
-    connected component, `pruning='gw'` applies the Goemans-Williamson pruning
-    pass that strips branches whose subtree prize does not cover its cost.
+    (prizes forgone + edge costs), which is the standard PCST objective.
+    `root=-1` means unrooted, `num_clusters=1` forces one connected component,
+    `pruning='gw'` applies the Goemans-Williamson pruning pass.
+
+    Args:
+        solver: "own" runs `ikgqa.pcst.gw`, the primal-dual algorithm written out
+            from the papers, and is the default: the retrieval pipeline depends
+            on no external solver. "pcst_fast" calls the C++ library, and exists
+            so the two can be cross-checked -- see `tests/test_gw.py`, which
+            requires our objective never to be worse on random instances.
 
     Returns (vertices, edges) as ids into the *instance*, not the input graph.
     """
-    _ensure_sane()
+    if solver not in SOLVERS:
+        raise ValueError(f"solver must be one of {SOLVERS}, got {solver!r}")
     if instance.edges.shape[0] == 0:
-        # Solver needs at least one edge; with none, only isolated prized nodes
-        # exist and a single connected component can hold at most one of them.
+        # With no edges only isolated prized nodes exist, and a single connected
+        # component can hold at most one of them.
         best = int(np.argmax(instance.prizes)) if instance.prizes.size else 0
         keep = np.array([best], dtype=np.int64) if instance.prizes.size else np.array([], dtype=np.int64)
         return keep, np.array([], dtype=np.int64)
+    if solver == "own":
+        from ikgqa.pcst import gw
+
+        return gw.solve(
+            instance.edges, instance.prizes, instance.costs, root, num_clusters, pruning, verbosity
+        )
+    _ensure_sane()
     return _pcst_fast()(
         instance.edges, instance.prizes, instance.costs, root, num_clusters, pruning, verbosity
     )
@@ -636,8 +670,14 @@ def retrieval_via_pcst_traced(
     topk_e: int = 3,
     cost_e: float = 0.5,
     tie_break: str = "auto",
+    solver: str = DEFAULT_SOLVER,
 ) -> RetrievalResult:
-    """Full G-Retriever PCST retrieval, with a trace of every intermediate step."""
+    """Full G-Retriever PCST retrieval, with a trace of every intermediate step.
+
+    `solver="own"` (the default) uses our own primal-dual implementation;
+    `solver="pcst_fast"` calls the external library, which is what the
+    byte-equivalence test against the published code holds fixed.
+    """
     num_nodes = int(graph.num_nodes)
 
     # Short circuit, exactly as in the original: with no text there is nothing
@@ -668,7 +708,9 @@ def retrieval_via_pcst_traced(
     cost_used = adjust_edge_cost(e_prizes, cost_e) if topk_e > 0 else float(cost_e)
 
     instance = build_pcst_instance(graph.edge_index, n_prizes, e_prizes, cost_used, num_nodes)
-    vertices, solver_edges = solve_pcst(instance)
+    vertices, solver_edges = solve_pcst(
+        instance, pruning=OWN_PRUNING if solver == "own" else PRUNING, solver=solver
+    )
     selected_nodes, selected_edges = decode_solution(instance, vertices, solver_edges, graph.edge_index)
 
     desc = build_description(textual_nodes, textual_edges, selected_nodes, selected_edges)
@@ -712,10 +754,11 @@ def retrieval_via_pcst(
     topk_e: int = 3,
     cost_e: float = 0.5,
     tie_break: str = "auto",
+    solver: str = DEFAULT_SOLVER,
 ) -> tuple:
     """Drop-in replacement for the original function: returns (subgraph, desc)."""
     r = retrieval_via_pcst_traced(
-        graph, q_emb, textual_nodes, textual_edges, topk, topk_e, cost_e, tie_break
+        graph, q_emb, textual_nodes, textual_edges, topk, topk_e, cost_e, tie_break, solver
     )
     return r.subgraph, r.desc
 
