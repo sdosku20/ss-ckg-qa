@@ -68,6 +68,17 @@ EXAMPLES = {
         edges=[[0, 1], [1, 2], [2, 3], [2, 4], [4, 5], [0, 4], [5, 3], [4, 3]],
         costs=[5.0, 3.0, 8.0, 2.0, 6.0, 12.0, 1.0, 2.0],
     ),
+    # "six-b" with A-E dropped from 12 to 5 and E-D raised from 2 to 4.
+    # Two things flip. D stops paying for itself (prize 2, now costs 4 to
+    # reach), and A gets a direct route in, so B stops being the only bridge
+    # and leaves the answer. A Steiner node is only a Steiner node while it is
+    # the cheapest way through.
+    "six-c": dict(
+        names=("A", "B", "C", "D", "E", "F"),
+        prizes=[10.0, 0.0, 8.0, 2.0, 6.0, 0.0],
+        edges=[[0, 1], [1, 2], [2, 3], [2, 4], [4, 5], [0, 4], [5, 3], [4, 3]],
+        costs=[5.0, 3.0, 8.0, 2.0, 6.0, 5.0, 1.0, 4.0],
+    ),
 }
 
 
@@ -304,7 +315,15 @@ def main() -> None:
         for nodes in tied:
             print("      {" + ",".join(NAMES[i] for i in nodes) + "}")
         print("  Which one comes back is the solver's choice, not the objective's.")
-    print("  GW guarantees only a factor 2; on this instance it is exact.")
+    # What the factor-2 guarantee actually permits, beside what happened. The
+    # Lagrangian-preserving form (GW95) is
+    #     c(T) + 2*pi(complement of T)  <=  2*c(OPT) + 2*pi(complement of OPT)
+    # which implies the plain statement below, since penalties are non-negative.
+    print(f"\n  the factor-2 guarantee permits any objective up to 2 x {best[0]:g} = {2 * best[0]:g}")
+    print(f"  the solver returned                                    {got_value:g}")
+    print(f"  so it used {got_value / best[0]:.2f} of its allowance -- the guarantee never bound here.")
+    print("  On a 15,810-node patient the optimum is unknowable, and this bound")
+    print("  is then the only thing standing between the answer and the unknown best.")
 
 
 if __name__ == "__main__":
