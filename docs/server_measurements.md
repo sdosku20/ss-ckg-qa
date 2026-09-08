@@ -567,7 +567,8 @@ organism name a clinician would use.
 | q4 | code only | 3 | 0.00 | **0.0000** |
 | q5 | code only | 16 | 0.00 | **0.0000** |
 
-(KAPING column void, see F11. The four other strategies are as stated.)
+Re-run after the F11 fix (`real_q3`): KAPING reproduces these values exactly,
+so the table holds for all five strategies.
 
 ### F15. Code-only diagnoses score 0.0000 for every strategy, on real data
 
@@ -610,3 +611,63 @@ meaningful by inspection.
 Showing the *fix* on real data needs the real ICD-10-GM catalogue, which we do
 not have. The cross-walk currently has only the synthetic one. Until Andi
 supplies it we can measure the problem (F15) but not the repair.
+
+---
+
+## 10. Both runs repeated after the KAPING fix — 8 September 2026
+
+`real_q3` (authored) and `real_q4` (ceiling), with `TopKTriples` now given its
+encoder. This closes out F11.
+
+### F18. The tie is FIVE-way on authored questions
+
+| retriever | mean recall | SD | mean nodes |
+|---|---|---|---|
+| PCST | **0.6000** | 0.5477 | **10.4** |
+| shortest paths | **0.6000** | 0.5477 | **10.4** |
+| top-k triples (KAPING) | **0.6000** | 0.5477 | **10.8** |
+| BFS expansion | **0.6000** | 0.5477 | 1208.4 |
+| top-k nodes + neighbours | **0.6000** | 0.5477 | 1208.4 |
+
+All five identical to four decimal places, means and standard deviations both.
+This is the cleanest statement of the RQ2 negative result in the thesis: with the
+encoder, the graph and the question fixed, **the selection strategy does not
+change which answer nodes come back.**
+
+0.6000 is not a partial score. It is exactly (1+1+1+0+0)/5, and SD 0.5477 is
+exactly the standard deviation of that vector. Recall here is a **step function
+on whether a description exists**, with no intermediate behaviour at all.
+
+### F19. KAPING keeps one real deficit, on the ceiling set
+
+Ceiling means: four strategies 0.7667, KAPING **0.6167**. The entire gap is one
+question, the Drug one, where KAPING scored 0.2500 against 1.0000.
+
+Cause, from the label breakdown: the answer set is 4 `Drug` nodes. KAPING
+returned `Drug x1, DrugAdministrationEvent x10` — it selects *triples*, so its
+node set is whatever its chosen edges happen to touch, and it spent the budget on
+the administration side of those edges instead of spreading across the four drugs.
+A node-scoring method targets the answer nodes directly.
+
+So KAPING's weakness is not connectivity (F11's retracted claim). It is that
+selecting k edges gives you no control over which nodes you end up with.
+
+### F20. PCST's advantage is compactness, and the factor is question-dependent
+
+| question set | PCST nodes | expansion nodes | factor |
+|---|---|---|---|
+| authored (gold) | 10.4 | 1208.4 | **116x** |
+| ceiling | 11.4 | 23.8 | **2.1x** |
+| replica | 13.2 | 307.8 | 23x |
+
+Identical recall in every row. The expansion methods hit the 2,000-node
+generator cap on all three authored questions that had answers, which is Table
+2.1's "no size control" row behaving exactly as written.
+
+Report the direction with the range. A single factor would be indefensible.
+
+### Cost note
+
+KAPING's mean time went from 0.021 s to 0.115 s, because it now encodes 45,562
+triple strings. That is a one-off per graph, cached across questions, and is the
+honest cost of running the baseline as published rather than degraded.
