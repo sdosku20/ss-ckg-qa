@@ -15,13 +15,13 @@ Stages, in the order they run:
     3  encoding            text -> unit vectors you can check by hand
     4  similarity          cosine of question against every node
     5  node prizes         rank -> prize, and what that discards
-    6  edge costs          the flat cost, and the tier split when it is enabled
+    6  edge costs          why one flat number here
     7  the solver instance what pcst_fast actually receives
     8  the answer          solver output, then decoding, then the subgraph
     9  optimality          brute force over every connected subtree
    10  identical text      what ties do to the answer
    11  terminology fix     the 0.00 -> 0.80 result, in miniature
-   12  edge prizes on      finding F2 reproduced at fourteen nodes
+   12  edge costs          why they were all equal, and when they differ
    13  the LLM's input
 
 Companion to `docs/pcst_from_the_papers.md`. The four-node algorithmic trace is
@@ -40,7 +40,12 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ikgqa.encoders import BagOfWordsEncoder, tokenize  # noqa: E402
-from ikgqa.pcst.core import SimpleGraph, retrieval_via_pcst_traced  # noqa: E402
+from ikgqa.pcst.core import (  # noqa: E402
+    SimpleGraph,
+    adjust_edge_cost,
+    compute_edge_prizes,
+    retrieval_via_pcst_traced,
+)
 
 pd.set_option("display.width", 200)
 pd.set_option("display.max_colwidth", 52)
@@ -101,12 +106,27 @@ RESOLVED_NODES[5] = "Metformin biguanide drug for type 2 diabetes mellitus"
 RESOLVED_NODES[6] = "Furosemide loop diuretic drug for oedema"
 
 
-def build(nodes=None, drug_order=(4, 5, 6)):
+# SPHN stores relation names in camelCase, which the tokeniser sees as one
+# opaque word. Humanising them is a graph-preparation choice, and section 12
+# shows it decides which of two very different edge-prize paths you land on.
+HUMAN_RELATIONS = {
+    "hasDiagnosis": "has diagnosis",
+    "hasDrugAdministration": "has drug administration",
+    "administeredDrug": "administered drug",
+    "hasLabResult": "has lab result",
+    "hasDataProvider": "has data provider",
+}
+
+
+def build(nodes=None, drug_order=(4, 5, 6), relation_text=None):
     """Assemble the graph, the frames the retriever wants, and the encoder.
 
     `drug_order` decides which drug node hangs off which administration event.
     The three events are textually identical, so permuting this changes nothing
     a retriever could observe -- which is exactly what section 10 exploits.
+
+    `relation_text` maps a relation name to the string that gets embedded. Pass
+    HUMAN_RELATIONS to embed readable phrases instead of camelCase.
     """
     nodes = list(NODES if nodes is None else nodes)
     edges = []
@@ -117,7 +137,8 @@ def build(nodes=None, drug_order=(4, 5, 6)):
             admin_seen += 1
         edges.append((src, rel, dst))
 
-    edge_texts = [rel for _, rel, _ in edges]
+    relation_text = relation_text or {}
+    edge_texts = [relation_text.get(rel, rel) for _, rel, _ in edges]
     encoder = BagOfWordsEncoder(nodes + edge_texts + [QUESTION])
 
     graph = SimpleGraph(
@@ -212,7 +233,8 @@ def main() -> None:
 
     head(6, "EDGE COSTS")
     print(f"topk_e = 0, so every edge prize is 0 and every edge costs the flat cost_e = {tr.cost_e_used}.")
-    print("Section 11 below turns edge prizes on and shows what changes.")
+    print("This is a CONSEQUENCE of topk_e = 0, not a demo simplification -- see section 12,")
+    print("which turns edge prizes on and shows costs genuinely differing.")
 
     head(7, "THE SOLVER INSTANCE  (what pcst_fast receives)")
     inst = tr.instance
@@ -317,19 +339,74 @@ def main() -> None:
         "  thesis, and why it is reported as graph preparation rather than retrieval."
     )
 
-    head(12, "EDGE PRIZES ON  (finding F2 at fourteen nodes)")
+    head(12, "WHERE DIFFERENT EDGE COSTS COME FROM")
+    print(
+        "G-Retriever takes ONE scalar cost_e for the whole graph -- there is no\n"
+        "per-edge cost input. An edge's effective cost is cost_e minus its PRIZE:\n\n"
+        "    prize <= cost_e   ->  cost becomes cost_e - prize\n"
+        "    prize >  cost_e   ->  edge becomes a free pair of half-edges plus a\n"
+        "                          virtual node worth (prize - cost_e)\n\n"
+        "So costs differ only where prizes differ. With topk_e = 0 every prize is 0,\n"
+        "every cost is exactly cost_e, and that is why section 6 showed one number.\n"
+        "It is a consequence of topk_e = 0, not a simplification for the demo.\n"
+    )
+
+    print("--- path A: readable relation text, the ordinary tier split ---\n")
+    gA, tnA, teA, encA, _ = build(relation_text=HUMAN_RELATIONS)
+    qA = encA.encode_one(QUESTION)
+    simA, przA = compute_edge_prizes(qA, gA.edge_attr, topk_e=3)
+    ceA = adjust_edge_cost(przA, COST_E)
+    print(f"  distinct edge similarities: {np.unique(simA)[::-1].round(4)}  -> 3 tiers\n")
+    print(f"  {'relation':<24s} {'uses':>4}  {'cos':>7}  {'prize':>7}   effective cost")
+    seen: set = set()
+    for i, (_, rel, _) in enumerate(EDGE_LIST):
+        if rel in seen:
+            continue
+        seen.add(rel)
+        uses = sum(1 for _, r2, _ in EDGE_LIST if r2 == rel)
+        if przA[i] > ceA:
+            eff = f"FREE  (+ virtual prize {przA[i] - ceA:.4f})"
+        else:
+            eff = f"{ceA - przA[i]:.4f}"
+        print(f"  {HUMAN_RELATIONS[rel]:<24s} {uses:>4}  {simA[i]:7.4f}  {przA[i]:7.4f}   {eff}")
+    print(
+        f"\n  cost_e stayed {ceA:.4f}. Tier k gets budget (3 - k) SPLIT across its members:\n"
+        "  the three 'administered drug' edges share a budget of 3, so 1.0 each; the\n"
+        "  eight zero-similarity edges share a budget of 1, so 0.125 each.\n\n"
+        "  THERE is your answer: costs now genuinely differ, 0.3750 against free. The\n"
+        "  relations the question talks about got cheap, the rest stayed expensive.\n"
+        "  And note the bias -- 'administered drug' is worth 1.0 each because it is used\n"
+        "  three times. Used three thousand times it would be worth 0.001 each. A\n"
+        "  relation's value falls as it becomes more common, whatever the question."
+    )
+
+    print("\n--- path B: camelCase relation text, as SPHN stores it ---\n")
     r = retrieval_via_pcst_traced(
         graph, q_emb, tnodes, tedges, topk=TOPK, topk_e=3, cost_e=COST_E, tie_break="stable"
     )
     ti = r.trace
+    print(f"  distinct edge similarities: {np.unique(ti.edge_similarity)}  -> ONE tier, all zero")
+    print(f"  every edge prize          {ti.edge_prizes[0]:.6f}   (= 1/14, the split of a budget of 1)")
     print(f"  cost_e requested {ti.cost_e_requested}  ->  used {ti.cost_e_used:.6f}   (the gamma cap)")
-    print(f"  virtual nodes created     {ti.instance.num_virtual_nodes}")
+    print(f"  virtual nodes created     {ti.instance.num_virtual_nodes} of {len(EDGE_LIST)} edges")
     print(f"  nodes returned            {len(ti.selected_nodes)} of {len(nodes)}")
-    print(f"  nodes returned with topk_e=0  {len(tr.selected_nodes)} of {len(nodes)}")
-    print("\n  Edge prizes tie-split across relation types, the cap drives cost_e down,")
-    print("  edges become virtual nodes with positive prize and free half-edges, and the")
-    print("  decoder closes the node set under every recovered edge. At 15,810 nodes")
-    print("  that returned all of them. Here it is the same mechanism, small enough to see.")
+    print(f"  nodes returned at topk_e=0    {len(tr.selected_nodes)} of {len(nodes)}")
+    print(
+        "\n  5 nodes became all 14. But be precise about WHY, because it is not the same\n"
+        "  trigger as the real graph. camelCase tokenises to one opaque word, so no\n"
+        "  relation shares anything with the question and every similarity is exactly\n"
+        "  0.0. That fires NOTE-A in compute_edge_prizes: the tier's value IS 0.0, so\n"
+        "  the membership test `prize == 0.0` matches every edge, and all 14 collect\n"
+        "  1/14. The cap then crushes cost_e below that, so every edge turns virtual.\n\n"
+        "  On the real graph the route is different and duller: `hasCode` genuinely\n"
+        "  occurs 4,883,809 times, so a real top tier splits its budget a few million\n"
+        "  ways and lands near 1e-6. Different trigger, same endpoint -- every edge\n"
+        "  ends up a virtual node with a tiny positive prize behind free half-edges,\n"
+        "  and the decoder then closes the node set over every recovered edge.\n\n"
+        "  Worth stating in the thesis: whether you hit the quirk or the tier path\n"
+        "  depends on whether relation names were humanised, which is a preparation\n"
+        "  decision, not a retrieval one."
+    )
 
     head(13, "WHAT THE LLM WOULD RECEIVE")
     print(result.desc)
