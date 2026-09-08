@@ -258,6 +258,64 @@ def json_list(keys: list) -> str:
     return json.dumps(keys, ensure_ascii=False)
 
 
+def draft_gold(table: pd.DataFrame, picks: list, out: str, patient: str) -> None:
+    """Write a gold-set skeleton with answer_keys already filled in.
+
+    Hand-writing JSON with forty node keys in it is the step most likely to go
+    wrong, and a wrong key silently changes the recall denominator. So this
+    fills every key for each picked concept and leaves exactly one thing for you
+    to type: the question itself.
+
+    Each `pick` is a substring of a concept's embed_text, from --concepts.
+    """
+    import json
+
+    lines: list = []
+    for i, pick in enumerate(picks, start=1):
+        sel = table[table["embed_text"].astype(str).str.contains(pick, case=False, na=False, regex=False)]
+        if sel.empty:
+            print(f"  q{i}: NO MATCH for {pick!r} -- skipped")
+            continue
+        texts = sorted(set(str(t) for t in sel["embed_text"]))
+        if len(texts) > 1:
+            print(f"  q{i}: {pick!r} matches {len(texts)} different concepts; narrow it. Skipped.")
+            continue
+        keys = [str(k) for k in sel["node_key"]]
+        coded = _is_bare_code(texts[0])
+        lines.append(
+            {
+                "qid": f"q{i}",
+                "text": "WRITE THE QUESTION HERE, as a clinician would ask it",
+                "language": "de",
+                "kind": "entity",
+                "patient": patient,
+                "answer_keys": keys,
+                "validated_by": "",
+                "validated_on": "",
+                "source": "authored from --concepts",
+                "notes": (
+                    f"target concept: {texts[0]}"
+                    + (
+                        "  | CODE ONLY: ask by the disease NAME, never the code. "
+                        "Expected recall 0.0 until terminology resolution runs."
+                        if coded
+                        else "  | has words: ask using words from this description."
+                    )
+                ),
+                "skip_reason": "",
+            }
+        )
+        print(f"  q{i}: {len(keys)} answer keys, {'CODE ONLY' if coded else 'named'}")
+
+    path = Path(out)
+    with path.open("w", encoding="utf-8") as fh:
+        for row in lines:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    print(f"\nwrote {path} ({len(lines)} questions, mode 600, stays on the server)")
+    print("Now edit ONLY the \"text\" field of each line. Everything else is done.")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="server_real_questions.py")
     ap.add_argument("--patient", type=int, default=0, help="patient index, not an identifier")
@@ -276,10 +334,27 @@ def main(argv=None) -> int:
         default="",
         help="dump every node_key whose embed_text contains this string (authoring aid)",
     )
+    ap.add_argument(
+        "--draft-gold",
+        default="",
+        help="write a gold-set skeleton to this path with answer_keys pre-filled",
+    )
+    ap.add_argument(
+        "--pick",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="a concept to build a question for; repeat once per question",
+    )
     args = ap.parse_args(argv)
 
-    if not any((args.derive, args.gold, args.concepts, args.keys_for)):
-        ap.error("give --derive N, --gold FILE, --concepts LABEL, or --keys-for TEXT")
+    if not any((args.derive, args.gold, args.concepts, args.keys_for, args.draft_gold)):
+        ap.error(
+            "give one of --derive N, --gold FILE, --concepts LABEL, --keys-for TEXT, "
+            "or --draft-gold OUT --pick TEXT ..."
+        )
+    if args.draft_gold and not args.pick:
+        ap.error("--draft-gold needs at least one --pick TEXT")
 
     print("loading one patient from the clinical Neo4j (read-only) ...")
     graph, table, stats = load_patient_graph(patient_index=args.patient, limit=args.limit)
@@ -291,7 +366,7 @@ def main(argv=None) -> int:
         f"({n_nodes / max(n_texts, 1):.1f} nodes per text)"
     )
 
-    if args.concepts or args.keys_for:
+    if args.concepts or args.keys_for or args.draft_gold:
         # node_key lives on graph.nodes, the label/text columns on `table`.
         # Both are one row per node in the same order, so they join positionally.
         assert len(graph.nodes) == len(table), "node table and graph.nodes are misaligned"
@@ -300,6 +375,8 @@ def main(argv=None) -> int:
             show_concepts(lookup, args.concepts, args.top)
         if args.keys_for:
             show_keys_for(lookup, args.keys_for)
+        if args.draft_gold:
+            draft_gold(lookup, args.pick, args.draft_gold, f"patient-{args.patient}")
     if not args.derive and not args.gold:
         return 0
 
