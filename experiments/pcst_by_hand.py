@@ -59,6 +59,15 @@ EXAMPLES = {
         edges=[[0, 1], [1, 2], [2, 3], [2, 4], [4, 5], [0, 4]],
         costs=[5.0, 3.0, 8.0, 2.0, 6.0, 12.0],
     ),
+    # "six" plus two cheap ways into D: E-D at 2 and F-D at 1. D's prize is 2,
+    # so reaching it via E-D is exactly break-even and the objective cannot
+    # tell the two answers apart. That tie is the point of this variant.
+    "six-b": dict(
+        names=("A", "B", "C", "D", "E", "F"),
+        prizes=[10.0, 0.0, 8.0, 2.0, 6.0, 0.0],
+        edges=[[0, 1], [1, 2], [2, 3], [2, 4], [4, 5], [0, 4], [5, 3], [4, 3]],
+        costs=[5.0, 3.0, 8.0, 2.0, 6.0, 12.0, 1.0, 2.0],
+    ),
 }
 
 
@@ -275,10 +284,27 @@ def main() -> None:
     print(f"  edges  {[_edge_name(int(e)) for e in edges]}")
     print(f"  objective {objective(got, tuple(int(e) for e in edges)):.2f}")
 
-    best = brute_force()[0]
+    all_subtrees = brute_force()
+    best = all_subtrees[0]
     print(f"  F(S) = PI - objective = {PRIZES.sum():g} - {best[0]:g} = {PRIZES.sum() - best[0]:g}")
-    verdict = "matches the optimum" if got == best[1] else f"differs from optimum {best[1]}"
-    print(f"\n  solver {verdict}. GW guarantees only a factor 2, but on this instance it is exact.")
+
+    # Compare objective VALUES, not node sets. Several different subtrees can
+    # share the optimal objective, and calling one of them "the" optimum would
+    # report a tie as a failure.
+    tied = sorted(
+        {tuple(sorted(n)) for value, n, _ in all_subtrees if abs(value - best[0]) < 1e-9}
+    )
+    got_value = objective(got, tuple(int(e) for e in solver()[1]))
+    if abs(got_value - best[0]) < 1e-9:
+        print(f"\n  solver reached the optimal objective {best[0]:g}.")
+    else:
+        print(f"\n  solver scored {got_value:g} against the optimum {best[0]:g}.")
+    if len(tied) > 1:
+        print(f"  {len(tied)} different subtrees share that objective:")
+        for nodes in tied:
+            print("      {" + ",".join(NAMES[i] for i in nodes) + "}")
+        print("  Which one comes back is the solver's choice, not the objective's.")
+    print("  GW guarantees only a factor 2; on this instance it is exact.")
 
 
 if __name__ == "__main__":
