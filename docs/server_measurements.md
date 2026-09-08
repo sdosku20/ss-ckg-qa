@@ -437,3 +437,90 @@ it can be measured exactly on the real serialisation.
 Still unknown: **whether the result rows carry node identity or only values**.
 This cannot be answered until the deployment is repaired, and it is the one
 remaining fact that changes how much work the comparison is.
+
+---
+
+## 8. Five questions on the live clinical graph — 8 September 2026
+
+First retrieval comparison run against the real STCS graph rather than the
+replica. Read-only, one patient.
+
+```
+# SERVER
+source ~/.ikgqa.env
+~/venvs/ikgqa/bin/python experiments/server_real_questions.py --derive 5 --out real_q1
+```
+
+Graph as loaded: 15,810 nodes, 45,562 edges, 614 distinct embed texts
+(25.7 nodes per text), 178 of 222 diagnoses code-only. Identical to the
+19-20 August figures, so the loader is stable.
+
+Questions are **auto-derived ceilings**: the query is the target node's own
+`embed_text`. No clinical validation, and a real question can only do worse.
+
+### Result
+
+| retriever | questions | mean recall | SD | mean nodes | mean s |
+|---|---|---|---|---|---|
+| PCST | 5 | **0.7667** | 0.3195 | **11.4** | 0.025 |
+| shortest paths | 5 | **0.7667** | 0.3195 | **11.4** | 0.013 |
+| BFS expansion | 5 | **0.7667** | 0.3195 | 23.8 | 0.015 |
+| top-k nodes + neighbours | 5 | **0.7667** | 0.3195 | 23.8 | 0.016 |
+| top-k triples (KAPING) | 5 | 0.2833 | 0.4118 | 9.4 | 0.020 |
+
+### F10. The four-way tie replicates on real data
+
+Four strategies returned *identical* mean recall and identical standard
+deviation, as they did on the replica (0.164, and 0.1461 SD 0.0081 across ten
+patients). The replica was not producing that agreement as an artefact of
+synthetic content: it is a property of this graph's structure.
+
+### F11. Connectivity is decisive here, unlike at matched size
+
+KAPING, the only strategy with no connectivity guarantee, scored **0.2833
+against 0.7667** — it recovered roughly a third of what the others did. It also
+returned a **disconnected** subgraph on the LabObservation question.
+
+This is the first *positive* RQ2 result and it does not contradict the matched
+size finding, it qualifies it. At matched size on hard questions connectivity
+bought nothing. On questions whose answer is reached through a hub it is worth
+0.48 recall. Both belong in Chapter 6.
+
+### F12. PCST is 2.1x more compact at identical recall
+
+PCST and shortest paths reach 0.7667 with 11.4 nodes; BFS and top-k plus
+neighbours need 23.8 for the same 0.7667. On the replica the same comparison
+gave 23x, so the magnitude is graph-dependent and only the direction is stable.
+Recall-per-node is where PCST wins, which is what the size axis was built to
+show.
+
+### F13. The 0.4167 rows are arithmetic, not retrieval failure
+
+Per question the pattern is bimodal. Answer sets of 1 and 4 nodes scored
+**1.0000**. Both answer sets of 24 nodes scored **0.4167** for all four
+connected strategies, and 0.4167 = **10/24** exactly. With `topk=10` at most ten
+nodes can carry a prize, so ten of twenty-four is the ceiling. No retriever
+could beat it at that budget.
+
+Same phenomenon as the analyte questions capped at 11/2407, but clean enough
+here to state as arithmetic rather than as a limitation.
+
+### Correction to Table 2.1 (Chapter 2)
+
+The table lists neighbourhood expansion as giving a connected result: **yes**.
+Measured, `top-k nodes + neighbours` returned `connected = False` on the Drug
+question. Expansion from a *single* seed is connected; expansion from *k* seeds
+is a union of k balls and can be disconnected when they do not overlap. The
+table needs either a qualification or a split row.
+
+### What this run cannot see
+
+The ceiling design is blind to the terminology problem. For a code-only
+diagnosis the derived query *is* the code, which matches its own node exactly,
+so it scores 1.0. A real user asks by disease name and matches nothing, which is
+the 0.00 that terminology resolution lifts to 0.80. **The ceiling therefore
+cannot measure the single largest effect in the thesis**, and only hand-written
+questions can. That is the argument for the gold set, now with evidence.
+
+Encoder was still bag-of-words, so absolute values are not clinical numbers;
+the between-strategy comparison holds because all five share the same scores.
