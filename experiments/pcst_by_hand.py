@@ -37,6 +37,40 @@ PRIZES = np.array([10.0, 0.0, 10.0, 1.0])
 EDGES = np.array([[0, 1], [1, 2], [2, 3]], dtype=np.int64)
 COSTS = np.array([4.0, 4.0, 5.0])
 
+# A six-node version with a cycle, for the whiteboard. Same two lessons as the
+# four-node one (a prize-0 bridge kept, a prized leaf pruned) plus two more: a
+# cycle the solver must choose an edge out of, and a well-spaced event schedule
+# so no two events collide except harmlessly at t=6.
+#
+#              A(10) --5-- B(0) --3-- C(8) --8-- D(2)
+#                |                      |
+#                +--------12------------+--2-- E(6) --6-- F(0)
+#                                     (A-E is the shortcut)
+EXAMPLES = {
+    "four": dict(
+        names=("a", "b", "c", "d"),
+        prizes=[10.0, 0.0, 10.0, 1.0],
+        edges=[[0, 1], [1, 2], [2, 3]],
+        costs=[4.0, 4.0, 5.0],
+    ),
+    "six": dict(
+        names=("A", "B", "C", "D", "E", "F"),
+        prizes=[10.0, 0.0, 8.0, 2.0, 6.0, 0.0],
+        edges=[[0, 1], [1, 2], [2, 3], [2, 4], [4, 5], [0, 4]],
+        costs=[5.0, 3.0, 8.0, 2.0, 6.0, 12.0],
+    ),
+}
+
+
+def select_example(name: str) -> None:
+    """Rebind the module-level instance. Everything below reads these globals."""
+    global NAMES, PRIZES, EDGES, COSTS
+    spec = EXAMPLES[name]
+    NAMES = spec["names"]
+    PRIZES = np.array(spec["prizes"])
+    EDGES = np.array(spec["edges"], dtype=np.int64)
+    COSTS = np.array(spec["costs"])
+
 
 def objective(nodes: frozenset, edges: tuple) -> float:
     """The PCST objective as the literature states it: c(T) + pi(complement of T).
@@ -210,7 +244,22 @@ def solver() -> tuple:
 
 
 def main() -> None:
-    print(__doc__.strip().split("Everything here")[0].strip())
+    import argparse
+
+    ap = argparse.ArgumentParser(prog="pcst_by_hand.py")
+    ap.add_argument(
+        "--example", choices=sorted(EXAMPLES), default="four",
+        help="'four' is the minimal teaching case; 'six' adds a cycle (whiteboard version)",
+    )
+    args = ap.parse_args()
+    select_example(args.example)
+
+    print(f"=== example: {args.example} nodes ===")
+    print("prizes  " + "  ".join(f"{n}={p:g}" for n, p in zip(NAMES, PRIZES)))
+    print("edges   " + "  ".join(
+        f"{NAMES[int(a)]}-{NAMES[int(b)]}:{c:g}" for (a, b), c in zip(EDGES, COSTS)
+    ))
+    print(f"total prize PI = {PRIZES.sum():g}")
     print("\n--- every connected subtree, scored (lower is better) ---")
     for value, nodes, chosen in brute_force()[:5]:
         label = "{" + ",".join(NAMES[i] for i in sorted(nodes)) + "}"
@@ -227,6 +276,7 @@ def main() -> None:
     print(f"  objective {objective(got, tuple(int(e) for e in edges)):.2f}")
 
     best = brute_force()[0]
+    print(f"  F(S) = PI - objective = {PRIZES.sum():g} - {best[0]:g} = {PRIZES.sum() - best[0]:g}")
     verdict = "matches the optimum" if got == best[1] else f"differs from optimum {best[1]}"
     print(f"\n  solver {verdict}. GW guarantees only a factor 2, but on this instance it is exact.")
 
