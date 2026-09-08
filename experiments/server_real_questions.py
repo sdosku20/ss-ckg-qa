@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import stat
 import sys
 import time
@@ -188,6 +189,75 @@ def write_outputs(df: pd.DataFrame, out: str) -> tuple:
     return full, safe
 
 
+CLINICAL_BANNER = """
+################################################################################
+#  The block below contains CLINICAL TEXT from a real patient record.          #
+#  It is here so you can author gold questions. It must not be copied off the  #
+#  server, pasted into chat, or included in the thesis. Only the node_key you  #
+#  put in the .jsonl travels, and that file stays on BioMedIT too.             #
+################################################################################
+"""
+
+
+# An ICD-10 / ATC-shaped token: a letter, two digits, optionally a dotted tail.
+# Concepts whose whole text is one of these are the "no words to match" case
+# that terminology resolution exists to fix.
+BARE_CODE = re.compile(r"^[A-Z]\d{2}(\.\d+)?[A-Z]?$|^[A-Z]\d{2}$|^[A-Z]\d[A-Z]{2}\d{2}$")
+
+
+def _is_bare_code(text: str) -> bool:
+    tail = text.split(":", 1)[-1].strip()
+    return bool(BARE_CODE.match(tail))
+
+
+def show_concepts(table: pd.DataFrame, label: str, limit: int) -> None:
+    """List the distinct concepts under one SPHN label, with a node_key each.
+
+    This is the lookup you need to fill in `answer_keys`. Concepts are grouped
+    by embed_text, so the count beside each one is how many nodes carry it --
+    which is exactly the size of that question's answer set.
+    """
+    sel = table[table["sphn_label"].astype(str).str.contains(label, case=False, na=False)]
+    if sel.empty:
+        labels = ", ".join(sorted(table["sphn_label"].astype(str).unique()))
+        print(f"no label matches {label!r}. Available: {labels}")
+        return
+    print(CLINICAL_BANNER)
+    print(f"{len(sel)} nodes under labels matching {label!r}\n")
+    groups = sel.groupby("embed_text", sort=True)
+    rows = sorted(groups, key=lambda kv: (-len(kv[1]), str(kv[0])))[:limit]
+    print(f"{'nodes':>5}  {'node_key (use this in answer_keys)':<44} embed_text")
+    for text, grp in rows:
+        key = str(grp["node_key"].iloc[0])
+        mark = "  <- CODE ONLY, no words to match" if _is_bare_code(str(text)) else ""
+        print(f"{len(grp):>5}  {key:<44} {str(text)[:60]}{mark}")
+    print(
+        f"\nShowing {len(rows)} of {groups.ngroups} distinct concepts."
+        "\nPick a spread: some with words in embed_text, some that are bare codes."
+        "\nFor a concept carried by N nodes, put ALL N keys in answer_keys, or the"
+        "\nrecall denominator will be wrong. Use --keys-for to dump them."
+    )
+
+
+def show_keys_for(table: pd.DataFrame, text: str) -> None:
+    """Every node_key whose embed_text matches, ready to paste into answer_keys."""
+    sel = table[table["embed_text"].astype(str).str.contains(text, case=False, na=False)]
+    if sel.empty:
+        print(f"no embed_text contains {text!r}")
+        return
+    print(CLINICAL_BANNER)
+    for et, grp in sel.groupby("embed_text", sort=True):
+        keys = [str(k) for k in grp["node_key"]]
+        print(f"\n{len(keys)} nodes, embed_text = {str(et)[:70]!r}")
+        print("  answer_keys: " + json_list(keys))
+
+
+def json_list(keys: list) -> str:
+    import json
+
+    return json.dumps(keys, ensure_ascii=False)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="server_real_questions.py")
     ap.add_argument("--patient", type=int, default=0, help="patient index, not an identifier")
@@ -195,10 +265,21 @@ def main(argv=None) -> int:
     ap.add_argument("--derive", type=int, default=0, help="auto-derive N ceiling questions")
     ap.add_argument("--gold", default="", help="a gold-set .jsonl of real questions")
     ap.add_argument("--out", default="real_questions", help="output prefix")
+    ap.add_argument(
+        "--concepts",
+        default="",
+        help="list distinct concepts under an SPHN label, with a node_key each (authoring aid)",
+    )
+    ap.add_argument("--top", type=int, default=30, help="how many concepts --concepts shows")
+    ap.add_argument(
+        "--keys-for",
+        default="",
+        help="dump every node_key whose embed_text contains this string (authoring aid)",
+    )
     args = ap.parse_args(argv)
 
-    if not args.derive and not args.gold:
-        ap.error("give --derive N, or --gold FILE, or both")
+    if not any((args.derive, args.gold, args.concepts, args.keys_for)):
+        ap.error("give --derive N, --gold FILE, --concepts LABEL, or --keys-for TEXT")
 
     print("loading one patient from the clinical Neo4j (read-only) ...")
     graph, table, stats = load_patient_graph(patient_index=args.patient, limit=args.limit)
@@ -209,6 +290,18 @@ def main(argv=None) -> int:
         f"text multiplicity: {n_nodes} nodes share {n_texts} distinct embed texts "
         f"({n_nodes / max(n_texts, 1):.1f} nodes per text)"
     )
+
+    if args.concepts or args.keys_for:
+        # node_key lives on graph.nodes, the label/text columns on `table`.
+        # Both are one row per node in the same order, so they join positionally.
+        assert len(graph.nodes) == len(table), "node table and graph.nodes are misaligned"
+        lookup = table.assign(node_key=graph.nodes["node_key"].to_numpy())
+        if args.concepts:
+            show_concepts(lookup, args.concepts, args.top)
+        if args.keys_for:
+            show_keys_for(lookup, args.keys_for)
+    if not args.derive and not args.gold:
+        return 0
 
     encoder = default_encoder(table["embed_text"], graph.edges["edge_attr"])
     assert encoder.dim == graph.node_emb.shape[1], (
