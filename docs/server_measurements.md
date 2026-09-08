@@ -475,16 +475,29 @@ deviation, as they did on the replica (0.164, and 0.1461 SD 0.0081 across ten
 patients). The replica was not producing that agreement as an artefact of
 synthetic content: it is a property of this graph's structure.
 
-### F11. Connectivity is decisive here, unlike at matched size
+### F11. RETRACTED — was a measurement bug, not a finding
 
-KAPING, the only strategy with no connectivity guarantee, scored **0.2833
-against 0.7667** — it recovered roughly a third of what the others did. It also
-returned a **disconnected** subgraph on the LabObservation question.
+**This finding is withdrawn.** It read: KAPING scored 0.2833 against 0.7667, so
+connectivity is decisive. The cause was a bug in `experiments/server_real_questions.py`:
+`TopKTriples` was constructed without its `encoder` argument, and its own
+docstring warns what that does —
 
-This is the first *positive* RQ2 result and it does not contradict the matched
-size finding, it qualifies it. At matched size on hard questions connectivity
-bought nothing. On questions whose answer is reached through a hub it is worth
-0.48 recall. Both belong in Chapter 6.
+> without it the ranking falls back to relation text alone, which is a
+> materially weaker baseline than KAPING as published, and understating a
+> baseline is as much a result error as overstating your own method.
+
+SPHN relation names are camelCase (`hasDiagnosis`), which tokenise to one opaque
+word, so every triple tied at cosine 0 and the baseline degraded to picking
+whatever the edge order put first. On the replica, adding the encoder moves
+KAPING from **0.2778 to 0.9583**, identical to the other four.
+
+Fixed in `retrievers_for`, which now requires the encoder. **The ceiling and
+gold runs in this section predate the fix and their KAPING column is void.**
+Everything else in them stands, because the other four strategies were
+unaffected and the code-only result was 0.0000 for all five.
+
+The consequence is the opposite of what F11 claimed: the tie is **five-way**, not
+four-way, which strengthens the negative RQ2 result rather than qualifying it.
 
 ### F12. PCST is 2.1x more compact at identical recall
 
@@ -524,3 +537,76 @@ questions can. That is the argument for the gold set, now with evidence.
 
 Encoder was still bag-of-words, so absolute values are not clinical numbers;
 the between-strategy comparison holds because all five share the same scores.
+
+---
+
+## 9. Five authored questions on the live graph — 8 September 2026
+
+First measurement with **hand-written** questions on the real record, phrased as
+a clinician would ask. Predictions were written down before the run.
+
+```
+# SERVER
+~/venvs/ikgqa/bin/python experiments/server_real_questions.py \
+  --draft-gold ~/q5.jsonl --pick Hypokali --pick Kachexie \
+  --pick "bezeichneter Diabetes" --pick B96.0 --pick B96.5
+~/venvs/ikgqa/bin/python experiments/server_real_questions.py --gold ~/q5.jsonl --out real_q2
+```
+
+Three questions target diagnoses that carry a German description; two target
+diagnoses stored as **an ICD-10 code and nothing else**, and were asked using the
+organism name a clinician would use.
+
+### F14. Every prediction held, 5 of 5
+
+| q | kind | answer nodes | predicted | measured |
+|---|---|---|---|---|
+| q1 | named | 2 | high | **1.0000** |
+| q2 | named | 2 | high | **1.0000** |
+| q3 | named | 8 | high | **1.0000** |
+| q4 | code only | 3 | 0.00 | **0.0000** |
+| q5 | code only | 16 | 0.00 | **0.0000** |
+
+(KAPING column void, see F11. The four other strategies are as stated.)
+
+### F15. Code-only diagnoses score 0.0000 for every strategy, on real data
+
+Not one of the five retrievers returned a single answer node for q4 or q5. This
+is the thesis's central claim measured on the real record rather than on the
+replica: **when the graph stores a code and the question carries words, the
+answer node is unreachable, and no selection strategy changes that.**
+
+Scope: 178 of this patient's 222 diagnosis nodes are code-only. So roughly four
+in five diagnoses are invisible to every method implemented here.
+
+This is the strongest available argument for the terminology cross-walk, and it
+is now an argument from measurement rather than from the fixture.
+
+### F16. PCST is two orders of magnitude more compact at identical recall
+
+On the three named questions, PCST and shortest paths returned **10 nodes** at
+recall 1.0000. BFS expansion and top-k-plus-neighbours returned **2,000** — the
+generator cap — for the same 1.0000. Averaged over the five questions,
+**10.4 nodes against 1,208.4**, a factor of **116**.
+
+Both expansion methods hit the cap on every named question, which is the "no
+size control" row of Table 2.1 behaving exactly as predicted: hops are integers,
+and one hop already reaches the whole region.
+
+Note this is the same comparison that gave 2.1x on the ceiling questions and 23x
+on the replica. The factor is highly question-dependent; only the direction is
+stable. Report the direction, and give the range.
+
+### F17. On q3 the returned subgraph was almost all answer
+
+PCST returned 10 nodes for q3 and 8 of them were the 8 answer nodes, with one
+case node and one patient node. Recall 1.0 at precision 0.8 in a 10-node budget.
+Worth reporting because the thesis so far only shows recall against size, and
+this is the one question where the subgraph is small enough for precision to be
+meaningful by inspection.
+
+### Still to do
+
+Showing the *fix* on real data needs the real ICD-10-GM catalogue, which we do
+not have. The cross-walk currently has only the synthetic one. Until Andi
+supplies it we can measure the problem (F15) but not the repair.

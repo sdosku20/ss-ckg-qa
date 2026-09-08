@@ -87,17 +87,24 @@ SAFE_COLUMNS = (
 INNER = dict(topk=10, topk_e=0, cost_e=0.5, tie_break="stable")
 
 
-def retrievers_for(graph):
+def retrievers_for(graph, encoder):
     """Every strategy, each behind the same two-stage generator.
 
     A patient graph is far larger than the subgraphs G-Retriever was built for,
     so all five run on an induced region rather than the whole patient. Same
     generator for all of them, so the comparison is not confounded by it.
+
+    `encoder` MUST be passed to TopKTriples. Without it KAPING ranks on relation
+    text alone, and SPHN relation names are camelCase tokens that share nothing
+    with any question -- every triple ties at cosine 0 and the baseline degrades
+    to picking whatever the edge order happens to put first. That is not KAPING,
+    it is a broken control, and it scored 0.0000 on questions the other four
+    strategies answered perfectly until this argument was added.
     """
     gen = SeedExpansion(k=10, hops=1, cap=2000)
     return [
         TwoStage(generator=gen, inner=PCST(**INNER)),
-        TwoStage(generator=gen, inner=TopKTriples(k=INNER["topk"])),
+        TwoStage(generator=gen, inner=TopKTriples(k=INNER["topk"], encoder=encoder)),
         TwoStage(generator=gen, inner=TopKNodesPlusNeighbors(k=INNER["topk"])),
         TwoStage(generator=gen, inner=BFSExpansion(k=INNER["topk"], hops=1)),
         TwoStage(generator=gen, inner=ShortestPaths(k=INNER["topk"])),
@@ -162,7 +169,7 @@ def run(questions: list, graph, table, encoder, source: str) -> pd.DataFrame:
     rows: list = []
     for q in questions:
         q_emb = encoder.encode_one(q.text)
-        for r in retrievers_for(graph):
+        for r in retrievers_for(graph, encoder):
             t0 = time.perf_counter()
             selection = r.retrieve(graph, q_emb)
             seconds = time.perf_counter() - t0
